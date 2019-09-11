@@ -367,8 +367,8 @@ class TestClimbAccelerationStart(unittest.TestCase):
         node = self.node_class()
         node.derive(None, init_climbs, alt_climbing, None, None, None, None, None, spd, flap)
         self.assertEqual(len(node), 1)
-        # With moving average over 7 samples, half window is 3 samples to the left
-        self.assertEqual(node[0].index, 30-3)
+        # With moving average over 11 samples, half window is 5 samples to the left
+        self.assertEqual(node[0].index, 30-5)
 
     def test_derive_eng_np(self):
         initial_climbs = buildsection('Initial Climb', 887, 926)

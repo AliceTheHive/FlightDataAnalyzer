@@ -314,16 +314,22 @@ class ClimbAccelerationStart(KeyTimeInstanceNode):
                 # flap retraction
                 slice_stop = int(flap_retraction.index)
                 spd_array = spd.array[_slice.start:slice_stop]
-                spd_avg = moving_average(spd_array, window=7)
+                spd_avg = moving_average(spd_array, window=11)
                 diff = np.ma.ediff1d(spd_avg)
                 if not len(diff):
                     return  # TODO: should we create a KTI in this case?
-                # Scanning from right to left, we determine when the speed
-                # stopped decreasing. Ths is the point where the speed started
-                # to increase when looking from left to right.
-                # Negative index as we are looking from the end
-                lowest_spd_idx = - np.ma.argmax(diff[::-1] <= 0.0)
-                index = (slice_stop or len(spd_array)) + lowest_spd_idx
+
+                # Scanning from right to left
+                diff_reversed = diff[::-1]
+                # Find the first time airspeed was increasing
+                first_incr_idx = np.ma.argmax(diff_reversed > 0)
+                # We determine when the speed stopped decreasing.
+                # Ths is the point where the speed started to increase when
+                # looking from left to right.
+                lowest_spd_idx = np.ma.argmax(diff_reversed[first_incr_idx:] <= 0.0)
+
+                # Substract lowest_spd_idx as we are looking from the end
+                index = (slice_stop or len(spd_array)) - lowest_spd_idx
                 self.frequency = spd.frequency
                 self.offset = spd.offset
                 self.create_kti(index)
