@@ -6913,7 +6913,7 @@ class AltitudeLastUnstableDuringLastApproachExcludingEngThrust(KeyPointValueNode
     stop landing.
 
     Unlike 'Altitude Last Unstable During Last Approach', this uses the
-    multistae parameter 'Stable Approach Excluding Eng Thrust' which
+    multistate parameter 'Stable Approach Excluding Eng Thrust' which
     excludes the Engine Thrust (N1/EPR) stability stage.
 
     Should the approach have not become stable, the altitude will read 0 ft,
