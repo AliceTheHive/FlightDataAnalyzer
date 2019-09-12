@@ -322,11 +322,11 @@ class ClimbAccelerationStart(KeyTimeInstanceNode):
                 # Scanning from right to left
                 diff_reversed = diff[::-1]
                 # Find the first time airspeed was increasing
-                first_incr_idx = np.ma.argmax(diff_reversed > 0)
+                first_incr_idx = np.ma.argmax(diff_reversed > 0.0)
                 # We determine when the speed stopped decreasing.
                 # Ths is the point where the speed started to increase when
                 # looking from left to right.
-                lowest_spd_idx = np.ma.argmax(diff_reversed[first_incr_idx:] <= 0.0)
+                lowest_spd_idx = np.ma.argmax(diff_reversed[first_incr_idx:] < 0.0)
 
                 # Substract lowest_spd_idx as we are looking from the end
                 index = (slice_stop or len(spd_array)) - lowest_spd_idx
