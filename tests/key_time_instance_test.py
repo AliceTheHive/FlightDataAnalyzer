@@ -357,7 +357,7 @@ class TestClimbAccelerationStart(unittest.TestCase):
         self.assertEqual(node[0].index, 400)
 
     def test_derive_spd(self):
-        array = np.ma.concatenate((np.ones(30) * 110, np.arange(111, 181)))
+        array = np.ma.concatenate((np.ones(29) * 111, np.arange(110, 181)))
         spd = Parameter('Airspeed', array=array)
         flap = KTI('Flap Lever Set', items=[KeyTimeInstance(80, name='Flap 0 Set')])
         init_climbs = buildsection('Initial Climb', 5, 40)
