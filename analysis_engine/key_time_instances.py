@@ -343,8 +343,8 @@ class ClimbAccelerationStart(KeyTimeInstanceNode):
             return False
 
         # Find when the airspeed started to increase after first flap retraction
-        slice_stop = int(flap_retraction.index)
-        spd_array = spd.array[_slice.start:slice_stop]
+        flap_retr_idx = int(flap_retraction.index)
+        spd_array = spd.array[_slice.start:flap_retr_idx]
         spd_avg = moving_average(spd_array, window=11)
         diff = np.ma.ediff1d(spd_avg)
         if not len(diff):
@@ -354,13 +354,20 @@ class ClimbAccelerationStart(KeyTimeInstanceNode):
         diff_reversed = diff[::-1]
         # Find the first time airspeed was increasing
         first_incr_idx = np.ma.argmax(diff_reversed > 0.0)
-        # We determine when the speed stopped decreasing.
-        # Ths is the point where the speed started to increase when
-        # looking from left to right.
+        # We determine when the speed started to increase, which is the moment
+        # when airspeed stopped to decrease.
         lowest_spd_idx = np.ma.argmax(diff_reversed[first_incr_idx:] < 0.0) + first_incr_idx
 
         # Substract lowest_spd_idx as we are looking from the end
-        index = (slice_stop or len(spd_array)) - lowest_spd_idx
+        index = (flap_retr_idx or len(spd_array)) - lowest_spd_idx
+        if spd.array[flap_retr_idx] - spd.array[index] < 5:
+            # Too small acceleration. We bail out from here.
+            return False
+
+        # We move the index 5 seconds earlier in time, taking into account
+        # it took some time for the pilots to lower the pitch before we could
+        # measure an acceleration.
+        index -= 5 * spd.frequency
         self.frequency = spd.frequency
         self.offset = spd.offset
         self.create_kti(index)
