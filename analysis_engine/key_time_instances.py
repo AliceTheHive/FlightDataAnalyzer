@@ -316,7 +316,8 @@ class ClimbAccelerationStart(KeyTimeInstanceNode):
             # Make sure Airpseed Selected increased before Flap 0 Set
             flap_aligned = flap.get_aligned(spd_sel)
             prev_flap = flap_aligned.get_previous(index)
-            if prev_flap and prev_flap.name == "Flap 0 Set":
+            if prev_flap is None or prev_flap.name == "Flap 0 Set":
+                # prev_flap is None if taking off with flaps 0 or truncated flight
                 return False
 
         self.frequency = frequency
