@@ -333,9 +333,9 @@ class ClimbAccelerationStart(KeyTimeInstanceNode):
         # Based on airspeed increase after first flap retraction
         # Align to Airspeed.
         _slice = initial_climbs.get_aligned(spd).get_first().slice
-        climbing_4000 = alt_climbing.get_aligned(spd).get(name='4000 Ft Climbing').get_first()
-        if climbing_4000:
-            _slice = slice(_slice.start, int(climbing_4000.index))
+        climbing_5000 = alt_climbing.get_aligned(spd).get(name='5000 Ft Climbing').get_first()
+        if climbing_5000:
+            _slice = slice(_slice.start, int(climbing_5000.index))
 
         # Find when flaps were first being retracted
         flap = flap.get_aligned(spd)
@@ -365,10 +365,10 @@ class ClimbAccelerationStart(KeyTimeInstanceNode):
             # Too small acceleration. We bail out from here.
             return False
 
-        # We move the index 5 seconds earlier in time, taking into account
+        # We move the index 3 seconds earlier in time, taking into account
         # it took some time for the pilots to lower the pitch before we could
         # measure an acceleration.
-        index -= 5 * spd.frequency
+        index -= 3 * spd.frequency
         self.frequency = spd.frequency
         self.offset = spd.offset
         self.create_kti(index)

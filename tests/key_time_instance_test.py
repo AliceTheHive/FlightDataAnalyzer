@@ -362,14 +362,14 @@ class TestClimbAccelerationStart(unittest.TestCase):
         flap = KTI('Flap Lever Set', items=[KeyTimeInstance(80, name='Flap 0 Set')])
         init_climbs = buildsection('Initial Climb', 5, 40)
         alt_climbing = AltitudeWhenClimbing(
-            items=[KeyTimeInstance(99, name='4000 Ft Climbing')]
+            items=[KeyTimeInstance(99, name='5000 Ft Climbing')]
         )
         node = self.node_class()
         node.derive(None, init_climbs, alt_climbing, None, None, None, None, None, spd, flap)
         self.assertEqual(len(node), 1)
         # With moving average over 11 samples, half window is 5 samples to the left
-        # And we move an additional 5 seconds before
-        self.assertEqual(node[0].index, 30-5-5)
+        # And we move an additional 3 seconds before
+        self.assertEqual(node[0].index, 30-5-3)
 
     def test_derive_eng_np(self):
         initial_climbs = buildsection('Initial Climb', 887, 926)
@@ -436,14 +436,14 @@ class TestClimbAccelerationStart(unittest.TestCase):
         flap = KTI('Flap Lever Set', items=[KeyTimeInstance(80, name='Flap 0 Set')])
         init_climbs = buildsection('Initial Climb', 5, 40)
         alt_climbing = AltitudeWhenClimbing(
-            items=[KeyTimeInstance(99, name='4000 Ft Climbing')]
+            items=[KeyTimeInstance(99, name='5000 Ft Climbing')]
         )
         node = self.node_class()
         node.derive(None, init_climbs, alt_climbing, spd_sel, None, None, None, None, spd, flap)
         self.assertEqual(len(node), 1)
         # With moving average over 11 samples, half window is 5 samples to the left
-        # And we move an additional 5 seconds before
-        self.assertEqual(node[0].index, 30-5-5)
+        # And we move an additional 3 seconds before
+        self.assertEqual(node[0].index, 30-5-3)
 
     def test_derive_spd_flap_small_acceleration(self):
         array = np.ma.concatenate((np.ones(29) * 111, np.arange(110, 115), np.ones(65) * 115))
@@ -464,14 +464,14 @@ class TestClimbAccelerationStart(unittest.TestCase):
         flap = KTI('Flap Lever Set', items=[KeyTimeInstance(40, name='Flap 0 Set')])
         init_climbs = buildsection('Initial Climb', 2, 20)
         alt_climbing = AltitudeWhenClimbing(
-            items=[KeyTimeInstance(49, name='4000 Ft Climbing')]
+            items=[KeyTimeInstance(49, name='5000 Ft Climbing')]
         )
         node = self.node_class()
         node.derive(None, init_climbs, alt_climbing, None, None, None, None, None, spd, flap)
         self.assertEqual(len(node), 1)
         # With moving average over 11 samples, half window is 5 samples to the left
-        # And we move an additional 5 seconds before -> 10 samples at 2 Hz
-        self.assertEqual(node[0].index, 30-5-10)
+        # And we move an additional 3 seconds before -> 6 samples at 2 Hz
+        self.assertEqual(node[0].index, 30-5-6)
 
 class TestClimbThrustDerateDeselected(unittest.TestCase):
     def test_can_operate(self):
