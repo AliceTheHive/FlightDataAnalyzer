@@ -258,6 +258,7 @@ class ClimbAccelerationStart(KeyTimeInstanceNode):
                initial_climbs=S('Initial Climb'),
                alt_climbing=KTI('Altitude When Climbing'),
                spd_sel=P('Airspeed Selected'),
+               spd_tgt=P('Airspeed Target'),
                spd_sel_fmc=P('Airspeed Selected (FMC)'),
                eng_type=A('Engine Propulsion'),
                eng_np=P('Eng (*) Np Max'),
@@ -268,7 +269,7 @@ class ClimbAccelerationStart(KeyTimeInstanceNode):
         if not initial_climbs.get_first():
             return
 
-        if self.derive_from_spd_sel(spd_sel, initial_climbs, alt_climbing, spd_sel_fmc, flap):
+        if self.derive_from_spd_sel(spd_tgt, spd_sel, initial_climbs, alt_climbing, spd_sel_fmc, flap):
             return
 
         if self.derive_from_spd_and_flap(flap, spd, initial_climbs, alt_climbing):
@@ -283,7 +284,7 @@ class ClimbAccelerationStart(KeyTimeInstanceNode):
         self.derive_from_alt_aal(alt_aal, eng_type, initial_climbs)
 
 
-    def derive_from_spd_sel(self, spd_sel, initial_climbs, alt_climbing, spd_sel_fmc, flap):
+    def derive_from_spd_sel(self, spd_tgt, spd_sel, initial_climbs, alt_climbing, spd_sel_fmc, flap):
         if spd_sel is None:
             return False
         if spd_sel.frequency < 0.125:
@@ -293,8 +294,8 @@ class ClimbAccelerationStart(KeyTimeInstanceNode):
         climbing_4000 = alt_climbing.get_aligned(spd_sel).get(name='4000 Ft Climbing').get_first()
         _slice = slice(_slice.start, int(climbing_4000.index) if climbing_4000 else _slice.stop)
 
-        def index_at_first_spd_sel_change():
-            for spd_ref in (spd_sel, spd_sel_fmc):
+        def index_at_first_spd_sel_change(spd_refs):
+            for spd_ref in spd_refs:
                 if spd_ref is None:
                     continue
                 spd_ref.array = spd_ref.array[_slice]
@@ -305,8 +306,14 @@ class ClimbAccelerationStart(KeyTimeInstanceNode):
                 if index:
                     yield index, spd_ref.frequency, spd_ref.offset
 
+        # If Airspeed Target available, ignore the others.
+        if spd_tgt and not spd_tgt.array.mask.all():
+            spd_refs = [spd_tgt]
+        else:
+            spd_refs = [spd_sel, spd_sel_fmc]
+
         try:
-            index, frequency, offset = min(index_at_first_spd_sel_change())
+            index, frequency, offset = min(index_at_first_spd_sel_change(spd_refs))
         except ValueError:
             # No index was found
             return False
