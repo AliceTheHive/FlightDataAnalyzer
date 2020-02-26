@@ -512,6 +512,9 @@ class TestLandingAirport(unittest.TestCase, NodeTest):
             ('Approach Information',),
             ('AFR Landing Airport',),
             ('Approach Information', 'AFR Landing Airport'),
+            ('Approach Information', 'Precise Positioning'),
+            ('AFR Landing Airport', 'Precise Positioning'),
+            ('Approach Information', 'AFR Landing Airport', 'Precise Positioning'),
         ]
 
     def test_derive_afr_fallback(self):
@@ -656,6 +659,9 @@ class TestLandingRunway(unittest.TestCase, NodeTest):
             ('Approach Information',),
             ('AFR Landing Runway',),
             ('Approach Information', 'AFR Landing Runway'),
+            ('Approach Information', 'Precise Positioning'),
+            ('AFR Landing Runway', 'Precise Positioning'),
+            ('Approach Information', 'AFR Landing Runway', 'Precise Positioning'),
         ]
 
     def test_derive_afr_fallback(self):
@@ -757,6 +763,8 @@ class TestTakeoffAirport(unittest.TestCase, NodeTest):
             KeyPointValue(index=32, value=9.0),
         ])
         afr_apt = A(name='AFR Takeoff Airport', value={'id': 25})
+        precise = A(name='Precise Positioning')
+        precise.value = True
         apt = self.node_class()
         apt.set_flight_attr = Mock()
         # Check that no attribute is created if not found via API:
@@ -766,7 +774,7 @@ class TestTakeoffAirport(unittest.TestCase, NodeTest):
         get_nearest_airport.assert_called_once_with(4.0, 3.0)
         get_nearest_airport.reset_mock()
         # Check that the AFR airport was used if not found via API:
-        apt.derive(lat, lon, afr_apt)
+        apt.derive(lat, lon, afr_apt, precise)
         apt.set_flight_attr.assert_called_once_with(afr_apt.value)
         apt.set_flight_attr.reset_mock()
         get_nearest_airport.assert_called_once_with(4.0, 3.0)
@@ -777,7 +785,7 @@ class TestTakeoffAirport(unittest.TestCase, NodeTest):
         '''
         Attribute is set when airport is found.
         '''
-        info = {'id': 123, 'distance':2}
+        info = {'id': 123, 'distance': 2}
         get_nearest_airport.return_value = [info]
         lat = KPV(name='Latitude At Liftoff', items=[
             KeyPointValue(index=12, value=4.0),
@@ -787,17 +795,25 @@ class TestTakeoffAirport(unittest.TestCase, NodeTest):
             KeyPointValue(index=12, value=3.0),
             KeyPointValue(index=32, value=9.0),
         ])
-        afr_apt = A(name='AFR Takeoff Airport', value={'id': 25, 'distance':2})
+        afr_apt = A(name='AFR Takeoff Airport', value={'id': 25, 'distance': 2})
+        precise = A(name='Precise Positioning')
+        precise.value = True
         apt = self.node_class()
         apt.set_flight_attr = Mock()
         # Check that the airport returned via API is used for the attribute:
-        apt.derive(lat, lon, afr_apt)
+        apt.derive(lat, lon, afr_apt, precise)
         apt.set_flight_attr.assert_called_once_with(info)
         apt.set_flight_attr.reset_mock()
         get_nearest_airport.assert_called_once_with(4.0, 3.0)
         get_nearest_airport.reset_mock()
         # Check that the airport returned via API is used for the attribute:
-        apt.derive(None, None, None, lat, lon)
+        apt.derive(lat, lon)
+        apt.set_flight_attr.assert_called_once_with(info)
+        apt.set_flight_attr.reset_mock()
+        get_nearest_airport.assert_called_once_with(4.0, 3.0)
+        get_nearest_airport.reset_mock()
+        # Check that the airport returned via API is used for the attribute:
+        apt.derive(None, None, None, None, lat, lon)
         apt.set_flight_attr.assert_called_once_with(info)
         apt.set_flight_attr.reset_mock()
         get_nearest_airport.assert_called_once_with(4.0, 3.0)
@@ -1039,6 +1055,7 @@ class TestTakeoffRunway(unittest.TestCase, NodeTest):
             KeyPointValue(index=1, value=90.0),
             KeyPointValue(index=2, value=180.0),
         ])
+        precise = A(name='Precise Positioning')
         rwy = self.node_class()
         rwy.set_flight_attr = Mock()
         # Check that the AFR airport was used and the API wasn't called:
@@ -1059,14 +1076,15 @@ class TestTakeoffRunway(unittest.TestCase, NodeTest):
         rwy.set_flight_attr.reset_mock()
         assert not nearest_runway.called, 'method should not have been called'
         # Check wrong heading triggers AFR:
-        rwy.derive(fdr_apt, afr_rwy, hdg_a)
+        precise.value = True
+        rwy.derive(fdr_apt, afr_rwy, hdg_a, None, None, None, None, precise)
         rwy.set_flight_attr.assert_called_once_with(afr_rwy.value)
-        nearest_runway.assert_called_once_with(fdr_apt.value, hdg_a.get_first().value, hint='takeoff')
+        nearest_runway.assert_called_once_with(fdr_apt.value, hdg_a.get_first().value)
         rwy.set_flight_attr.reset_mock()
         nearest_runway.reset_mock()
-        rwy.derive(fdr_apt, afr_rwy, hdg_b)
+        rwy.derive(fdr_apt, afr_rwy, hdg_b, None, None, None, None, precise)
         rwy.set_flight_attr.assert_called_once_with(info)
-        nearest_runway.assert_called_once_with(fdr_apt.value, hdg_b.get_first().value, hint='takeoff')
+        nearest_runway.assert_called_once_with(fdr_apt.value, hdg_b.get_first().value)
 
     def test_derive__bilbao(self):
         fdr_apt = A(name='FDR Takeoff Airport', value=airports['airports']['004'])

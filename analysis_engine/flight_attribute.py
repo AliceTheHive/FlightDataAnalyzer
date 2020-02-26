@@ -298,38 +298,49 @@ class LandingAirport(FlightAttributeNode):
     @classmethod
     def can_operate(cls, available):
         '''
-        We can determine a landing airport in one of two ways:
+        We can determine a landing airport in a number of ways:
 
-        1. Find the nearest airport to the coordinates at landing.
-        2. Use the airport data provided in the achieved flight record.
+        1. Find the nearest airport to the coordinates at landing with precise positioning.
+        2. Use the airport data provided in the achieved flight record
+           if the aircraft does not have precise positioning.
+        3. Find the nearest airport to the coordinates at landing without precise positioning.
+        4. Use the airport data provided in the achieved flight record as a fallback.
         '''
         return any_of(('Approach Information', 'AFR Landing Airport'), available)
 
+    def use_afr(self, land_afr_apt):
+        airport = land_afr_apt.value
+        self.debug('Using landing airport from AFR: %s', airport)
+        self.set_flight_attr(airport)
+
     def derive(self,
-               approaches=App('Approach Information'),
-               land_afr_apt=A('AFR Landing Airport')):
+               approaches=KPV('Approach Information'),
+               land_afr_apt=App('AFR Landing Airport'),
+               precise_pos=A('Precise Positioning')):
         '''
         '''
-        # 1. If we have Approach Information use this as hardwork already done.
+        precise_pos = bool(getattr(precise_pos, 'value', False))
+
+        if not precise_pos and land_afr_apt:
+            self.use_afr(land_afr_apt)
+            return
+
         if approaches and approaches.get_last(_type='LANDING'):
+
             landing_approach = approaches.get_last(_type='LANDING')
             airport = landing_approach.airport
             if airport:
                 self.set_flight_attr(airport)
-                return  # We found an airport, so finish here.
+                return
             elif landing_approach:
                 self.warning('No landing airport found.')
             else:
                 self.warning('No Landing Approach for looking up landing airport.')
 
-        # 2. If we have an airport provided in achieved flight record, use it:
         if land_afr_apt:
-            airport = land_afr_apt.value
-            self.debug('Using landing airport from AFR: %s', airport)
-            self.set_flight_attr(airport)
-            return  # We found an airport in the AFR, so finish here.
+            self.use_afr(land_afr_apt)
+            return
 
-        # 3. After all that, we still couldn't determine an airport...
         self.error('Unable to determine airport at landing!')
         self.set_flight_attr(None)
 
@@ -345,33 +356,49 @@ class LandingRunway(FlightAttributeNode):
 
     @classmethod
     def can_operate(cls, available):
+        '''
+        We can determine a landing runway in a number of ways:
+        1. Use the runway data provided in the achieved flight record
+           if available and the aircraft does not have precise positioning.
+        2. Using airport, heading and coordinates at landing.
+        3. Use the runway data provided in the achieved flight record if
+           airport or heading is missing or the runway failed to derive.
+        '''
         return any_of(('Approach Information', 'AFR Landing Runway'), available)
+
+    def use_afr(self, land_afr_rwy):
+        runway = land_afr_rwy.value
+        self.debug('Using landing runway from AFR: %s', runway)
+        self.set_flight_attr(runway)
+
 
     def derive(self,
                approaches=App('Approach Information'),
-               land_afr_rwy=A('AFR Landing Runway'),):
+               land_afr_rwy=A('AFR Landing Runway'),
+               precise_pos=A('Precise Positioning')):
         '''
         '''
-        # 1. If we have Approach Information use this as hardwork already done.
+        precise_pos = bool(getattr(precise_pos, 'value', False))
+
+        if not precise_pos and land_afr_rwy:
+            self.use_afr(land_afr_rwy)
+            return
+
         if approaches and approaches.get_last(_type='LANDING'):
             landing_approach = approaches.get_last(_type='LANDING')
             runway = landing_approach.landing_runway
             if runway:
                 self.set_flight_attr(runway)
-                return  # We found an airport, so finish here.
+                return
             elif landing_approach:
                 self.warning('No landing runway found.')
             else:
                 self.warning('No Landing Approach for looking up landing airport.')
 
-        # 2. If we have a runway provided in achieved flight record, use it:
         if land_afr_rwy:
-            runway = land_afr_rwy.value
-            self.debug('Using landing runway from AFR: %s', runway)
-            self.set_flight_attr(runway)
-            return  # We found a runway in the AFR, so finish here.
+            self.use_afr(land_afr_rwy)
+            return
 
-        # 3. After all that, we still couldn't determine a runway...
         self.error('Unable to determine runway at landing!')
         self.set_flight_attr(None)
 
@@ -418,11 +445,12 @@ class TakeoffAirport(FlightAttributeNode):
     @classmethod
     def can_operate(cls, available):
         '''
-        We can determine a takeoff airport in one of three ways:
+        We can determine a takeoff airport in a number of ways:
 
-        1. Find the nearest airport to the coordinates at takeoff.
+        1. Find the nearest airport to the coordinates with precise positioning at takeoff.
         2. Use the airport data provided in the achieved flight record.
-        3. If segmetn does not takeoff eg RTO use coordinates off blocks
+        3. Find the nearest airport to the coordinates without precise positioning at takeoff.
+        4. If segment does not takeoff (e.g. RTO) use coordinates off blocks.
         '''
         complete_flight = all((
             'Latitude At Liftoff' in available,
@@ -450,10 +478,10 @@ class TakeoffAirport(FlightAttributeNode):
                 if airports:
                     airport = min(airports, key=itemgetter('distance'))
                     codes = airport.get('code', {})
-                    code = codes.get('icao') or codes.get('iata')or codes.get('faa') or 'Unknown'
+                    code = codes.get('icao') or codes.get('iata') or codes.get('faa') or 'Unknown'
                     self.info('Detected takeoff airport: %s from coordinates (%f, %f)', code, lat.value, lon.value)
                     self.set_flight_attr(airport)
-                    return True  # We found an airport, so finish here.
+                    return True
         else:
             self.warning('No coordinates for looking up takeoff airport.')
             # No suitable coordinates, so fall through and try AFR.
@@ -462,30 +490,34 @@ class TakeoffAirport(FlightAttributeNode):
                toff_lat=KPV('Latitude At Liftoff'),
                toff_lon=KPV('Longitude At Liftoff'),
                toff_afr_apt=A('AFR Takeoff Airport'),
+               precise_pos=A('Precise Positioning'),
                off_block_lat=KPV('Latitude Off Blocks'),
                off_block_lon=KPV('Longitude Off Blocks'),):
         '''
         '''
-        # 1. If we have latitude and longitude, look for the nearest airport:
+        precise_pos = bool(getattr(precise_pos, 'value', False))
+
+        if toff_lat and toff_lon and precise_pos:
+            success = self.lookup_airport(toff_lat, toff_lon)
+            if success:
+                return
+
+        if toff_afr_apt:
+            airport = toff_afr_apt.value
+            self.debug('Using takeoff airport from AFR: %s', airport)
+            self.set_flight_attr(airport)
+            return
+
         if toff_lat and toff_lon:
             success = self.lookup_airport(toff_lat, toff_lon)
             if success:
                 return
 
-        # 2. If we have an airport provided in achieved flight record, use it:
-        if toff_afr_apt:
-            airport = toff_afr_apt.value
-            self.debug('Using takeoff airport from AFR: %s', airport)
-            self.set_flight_attr(airport)
-            return  # We found an airport in the AFR, so finish here.
-
-        # 3. If we have coordinates of Aircraft moving off Blocks look for the nearest airport:
         if off_block_lat and off_block_lon:
             success = self.lookup_airport(off_block_lat, off_block_lon)
             if success:
                 return
 
-        # 4. After all that, we still couldn't determine an airport...
         self.error('Unable to determine airport at takeoff!')
         self.set_flight_attr(None)
 
@@ -658,10 +690,11 @@ class TakeoffRunway(FlightAttributeNode):
     def can_operate(cls, available):
         '''
         We can determine a takeoff runway in a number of ways:
-
-        1. Imprecisely using airport and heading during takeoff.
-        2. Precisely using airport, heading and coordinates at takeoff.
-        3. Use the runway data provided in the achieved flight record.
+        1. Use the runway data provided in the achieved flight record
+           if available and the aircraft does not have precise positioning.
+        2. Using airport, heading and coordinates at takeoff.
+        3. Use the runway data provided in the achieved flight record if
+           airport or heading is missing or the runway failed to derive.
         '''
         minimum = all((
             'FDR Takeoff Airport' in available,
@@ -671,6 +704,11 @@ class TakeoffRunway(FlightAttributeNode):
         fallback = 'AFR Takeoff Runway' in available
 
         return minimum or fallback
+
+    def use_afr(self, toff_afr_rwy):
+        runway = toff_afr_rwy.value
+        self.debug('Using takeoff runway from AFR: %s', runway)
+        self.set_flight_attr(runway)
 
     def derive(self,
                toff_fdr_apt=A('FDR Takeoff Airport'),
@@ -686,8 +724,12 @@ class TakeoffRunway(FlightAttributeNode):
         fallback = False
         precise = bool(getattr(precision, 'value', False))
 
+        if not precise and toff_afr_rwy:
+            self.use_afr(toff_afr_rwy)
+            return
+
         try:
-            airport = toff_fdr_apt.value  # FIXME
+            airport = toff_fdr_apt.value
         except AttributeError:
             self.warning('Invalid airport... Fallback to AFR Takeoff Runway.')
             fallback = True
@@ -703,7 +745,7 @@ class TakeoffRunway(FlightAttributeNode):
             self.warning('Invalid heading... Fallback to AFR Takeoff Runway.')
             fallback = True
 
-        # 1. If we have airport and heading, look for the nearest runway:
+        # If we have airport and heading, look for the nearest runway:
         if not fallback:
             kwargs = {}
 
@@ -740,16 +782,12 @@ class TakeoffRunway(FlightAttributeNode):
             else:
                 self.info('Detected takeoff runway: %s for airport #%d @ %03.1f deg with %s', runway['identifier'], airport['id'], heading, kwargs)
                 self.set_flight_attr(runway)
-                return  # We found a runway, so finish here.
+                return
 
-        # 2. If we have a runway provided in achieved flight record, use it:
         if toff_afr_rwy:
-            runway = toff_afr_rwy.value
-            self.debug('Using takeoff runway from AFR: %s', runway)
-            self.set_flight_attr(runway)
-            return  # We found a runway in the AFR, so finish here.
+            self.use_afr(toff_afr_rwy)
+            return
 
-        # 3. After all that, we still couldn't determine a runway...
         self.error('Unable to determine runway at takeoff!')
         self.set_flight_attr(None)
 

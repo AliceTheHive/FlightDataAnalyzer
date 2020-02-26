@@ -122,7 +122,7 @@ class ApproachInformation(ApproachNode):
 
     def _evaluate_airports(self, airports, lowest_lat, lowest_lon, lowest_hdg, appr_ils_freq):
         '''
-        pre filter cirteria on airprots
+        Pre-filter criteria on airports
         '''
         annotated_airports = {}
         for airport in airports:
