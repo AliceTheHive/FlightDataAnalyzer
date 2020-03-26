@@ -1033,6 +1033,24 @@ class TestTouchdown(unittest.TestCase):
         tdwn.derive(None, None, alt, alt, gog, lands)
         self.assertEqual(tdwn.get_first().index, 23292.0)
 
+    def test_touchdown_with_alt_gear_and_acc_norm(self):
+        altitude = P('Altitude AAL', np.ma.array([28, 21, 15, 10, 6, 3, 1, 0, 0, 0, 0, 0]))
+        gog = M(
+            'Gear On Ground',
+            np.ma.repeat([1, 0], [10, 2]),
+            values_mapping={0: 'Ground', 1: 'Air'}
+        )
+        acc_norm = P('Acceleration Normal', np.ma.ones(12 * 4), frequency=4)
+        acc_norm.array[40:] = [1.3, 1.5, 1.1, 0.7, 1.3, 1.6, 1.2, 1.0]
+        lands = buildsection('Landing', 2, 12)
+        tdwn = Touchdown()
+        tdwn.get_derived(
+            (acc_norm, None, altitude, None, gog, lands, None, None, None, None, None, None)
+        )
+        # touchdown happened when gear on ground
+        expected = [KeyTimeInstance(index=37.5, name='Touchdown')]
+        self.assertEqual(tdwn, expected)
+
 
 class TestOffshoreTouchdown(unittest.TestCase, NodeTest):
 
