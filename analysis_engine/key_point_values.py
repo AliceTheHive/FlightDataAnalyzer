@@ -5973,26 +5973,29 @@ class AltitudeAtLastFlapChangeBeforeBottomOfDescent(KeyPointValueNode):
         ]
 
         for bottom in bottoms_in_app:
-            endpoint = bottom.index
+            endpoint = int(bottom.index)
             if far:
                 # This is an aircraft with automatic flap retraction. If the
                 # auto retraction happened within three seconds of the
                 # bottom of descent, set the endpoint to three seconds before the
                 # bottom of descent.
                 delta = int(3 * flap.hz)
-                if far.array.raw[int(endpoint - delta)] == 0 and \
-                        far.array.raw[int(endpoint + delta)] == 1:
+                if far.array.raw[endpoint - delta] == 0 and \
+                        far.array.raw[endpoint + delta] == 1:
                     endpoint = endpoint - delta
 
-            final_flap = flap.array.raw[int(endpoint)]
+            final_flap = flap.array.raw[endpoint]
             flap_move = abs(flap.array.raw - final_flap)
-            rough_index = index_at_value(flap_move, 0.5, slice(endpoint, 0, -1))
-            # index_at_value tries to be precise, but in this case we really
-            # just want the index at the new flap setting.
-            if rough_index:
-                last_index = np.round(rough_index)
-                alt_last = value_at_index(alt_aal.array, last_index)
-                self.create_kpv(last_index, alt_last)
+            # First non zero value is where the flaps were at a different setting
+            first_flap_move = np.ma.argmax(flap_move[endpoint:0:-1] != 0.0)
+            if not first_flap_move:
+                # Flap never moved?
+                continue
+            index = endpoint - first_flap_move + 1
+            if index:
+                alt_last = value_at_index(alt_aal.array, index)
+                if alt_last is not None:
+                    self.create_kpv(index, alt_last)
 
 
 class AltitudeAtLastFlapSelectionBeforeTouchdown(KeyPointValueNode):

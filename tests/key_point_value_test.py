@@ -7357,6 +7357,23 @@ class TestAltitudeAtLastFlapChangeBeforeBottomOfDescent(unittest.TestCase, NodeT
         ]))
 
 
+    def test_masked_flap_lever(self):
+        array = np.ma.concatenate((np.ones(8) * 10, np.ones(7) * 15))
+        array[4:8] = np.ma.masked
+        mapping = {0: '0', 10: '10', 15: '15'}
+        flap_lever = M(name='Flap Lever', array=array, values_mapping=mapping)
+        array = np.ma.concatenate((np.arange(1000, 0, -100), np.zeros(5)))
+        alt_aal = P(name='Altitude AAL', array=array)
+        bottoms = KTI('Bottom Of Descent', items=[KeyTimeInstance(10)])
+        apps = buildsection('Approach And Landing', 0, 15)
+        name = self.node_class.get_name()
+        node = self.node_class()
+        node.derive(alt_aal, flap_lever, None, bottoms, apps, None)
+        self.assertEqual(node, KPV(name=name, items=[
+            KeyPointValue(index=4.0, value=600.0, name=name),
+        ]))
+
+
 class TestAltitudeAtLastFlapSelectionBeforeTouchdown(unittest.TestCase):
     def setUp(self):
         self.node_class = AltitudeAtLastFlapSelectionBeforeTouchdown
