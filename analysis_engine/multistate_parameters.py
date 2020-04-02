@@ -3442,19 +3442,19 @@ class StableApproachStages(object):
                 continue
             # use Combined descent phase slice as it contains the data from
             # top of descent to touchdown (approach starts and finishes later)
-            approach.slice = phase.slice
+            approach_slice = phase.slice
 
             # FIXME: approaches shorter than 10 samples will not work due to
             # the use of moving_average with a width of 10 samples.
-            if approach.slice.stop - approach.slice.start < 10:
+            if approach_slice.stop - approach_slice.start < 10:
                 continue
             # Restrict slice to 10 seconds after landing if we hit the ground
-            gnd = index_at_value(alt.array, 0, approach.slice)
-            if gnd and gnd + 10 < approach.slice.stop:
+            gnd = index_at_value(alt.array, 0, approach_slice)
+            if gnd and gnd + 10 < approach_slice.stop:
                 stop = gnd + 10
             else:
-                stop = approach.slice.stop
-            _slice = slices_int(approach.slice.start, stop)
+                stop = approach_slice.stop
+            _slice = slices_int(approach_slice.start, stop)
 
             altitude = self.repair(alt.array, _slice)
             index_at_50 = int(index_closest_value(altitude, 50))

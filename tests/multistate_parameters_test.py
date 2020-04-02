@@ -3386,8 +3386,8 @@ class TestStableApproach(unittest.TestCase):
         self.assertEqual(len(stable.array), len(alt.array))
         analysed = np.ma.clump_unmasked(stable.array)
         self.assertEqual(len(analysed), 1)
-        # valid for the approach slice
-        self.assertEqual(analysed[0].start, apps[0].slice.start)
+        # valid for the last descent slice within the approach slice
+        self.assertEqual(analysed[0].start, phases[-1].slice.start)
         # stop is 10 secs after touchdown
         self.assertEqual(analysed[0].stop, 2946)
 
@@ -3399,6 +3399,8 @@ class TestStableApproach(unittest.TestCase):
         # 10 samples above 1000ft where Eng N1 was not yet stable
         self.assertEqual(list(sect[117:127]), ['Eng Thrust Not Stable']*10)
         self.assertTrue(np.all(sect[127:] == ['Stable']))
+
+        self.assertEqual(apps[0].slice, slice(2800, 3000))
 
 
 class TestStableApproachExcludingEngThrust(unittest.TestCase):
@@ -3553,8 +3555,8 @@ class TestStableApproachExcludingEngThrust(unittest.TestCase):
         self.assertEqual(len(stable.array), len(alt.array))
         analysed = np.ma.clump_unmasked(stable.array)
         self.assertEqual(len(analysed), 1)
-        # valid for the approach slice
-        self.assertEqual(analysed[0].start, apps[0].slice.start)
+        # valid for the last descent slice within the approach slice
+        self.assertEqual(analysed[0].start, phases[-1].slice.start)
         # stop is 10 secs after touchdown
         self.assertEqual(analysed[0].stop, 2946)
 
@@ -3565,6 +3567,7 @@ class TestStableApproachExcludingEngThrust(unittest.TestCase):
         self.assertEqual(list(sect[74:117]), ['Not Landing Flap']*43)
         self.assertTrue(np.all(sect[117:] == ['Stable']))
 
+        self.assertEqual(apps[0].slice, slice(2800, 3000))
 
 class TestStallWarning(unittest.TestCase):
 
