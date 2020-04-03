@@ -983,6 +983,29 @@ class TestSegmentTypeAndSlice(unittest.TestCase):
         self.assertEqual(segment, slice(0, 5736))
         self.assertEqual(array_start_secs, 0)
 
+    def test_segment_type_and_slice_2b(self):
+        # Gear on Ground is used instead of Eng (1) Nr
+        # Amended test to ensure gog arrays operate at start and end of data
+        speed_array = load_array('segment_type_and_slice_2_speed.npz')
+        heading_array = load_array('segment_type_and_slice_2_heading.npz')
+        eng_arrays = load_array('segment_type_and_slice_2_eng_arrays.npz')
+        aircraft_info = {'Aircraft Type': 'helicopter'}
+        thresholds = {'hash_min_samples': 64, 'speed_threshold': 90, 'min_split_duration': 100, 'min_duration': 180}
+        def get(key):
+            if key == 'Gear On Ground':
+                array=load_array('segment_type_and_slice_2_gog.npz')
+                array[:1000] = 0
+                return Parameter('Gear on Ground', array=array)
+        hdf = mock.MagicMock()
+        hdf.get.side_effect = get
+        hdf.superframe_present = False
+        segment_type, segment, array_start_secs = _segment_type_and_slice(
+            speed_array, 1, heading_array, 1, 0, 5736, eng_arrays,
+            aircraft_info, thresholds, hdf)
+        self.assertEqual(segment_type, 'STOP_ONLY')
+        self.assertEqual(segment, slice(0, 5736))
+        self.assertEqual(array_start_secs, 0)
+
     def test_segment_type_and_slice_3(self):
         # Gear on Ground is used instead of Eng (1) Nr
         speed_array = load_array('segment_type_and_slice_3_speed.npz')
