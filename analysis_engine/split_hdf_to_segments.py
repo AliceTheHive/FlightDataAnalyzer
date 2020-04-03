@@ -25,6 +25,7 @@ from analysis_engine.library import (align,
                                      repair_mask,
                                      rate_of_change,
                                      runs_of_ones,
+                                     shift_slices,
                                      slices_and_not,
                                      slices_multiply,
                                      slices_of_runs,
@@ -161,6 +162,7 @@ def _segment_type_and_slice(speed_array, speed_frequency,
             gog_stop_slices = sorted(slices_of_runs(
                 gog.array[gog_stop_idx - gog_window_samples:gog_stop_idx],
                 min_samples=gog_min_samples, flat=True))
+            gog_stop_slices = shift_slices(gog_stop_slices, gog_stop_idx - gog_window_samples)
             if gog_start_slices and gog_stop_slices:
                 # Use Gear on Ground rather than rotor speed as rotors may be
                 # 90+% at beginning or end of segment.
