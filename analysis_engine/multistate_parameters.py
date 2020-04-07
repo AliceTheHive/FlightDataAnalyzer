@@ -1337,10 +1337,12 @@ class FlapIncludingTransition(MultistateDerivedParameterNode):
 
     @classmethod
     def can_operate(cls, available,
-                    model=A('Model'), series=A('Series'), family=A('Family')):
+                    model=A('Model'), series=A('Series'), family=A('Family'),
+                    ac_type=A('Aircraft Type')):
 
-        if not all_of(('Flap Angle', 'Model', 'Series', 'Family'), available):
-            return all_of(('Flap', 'Model', 'Series', 'Family'), available)
+        if not all_of(('Flap Angle', 'Model', 'Series', 'Family'), available) or \
+           ac_type == helicopter:
+            return False
 
         try:
             at.get_flap_map(model.value, series.value, family.value)
