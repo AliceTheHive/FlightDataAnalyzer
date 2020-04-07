@@ -1437,12 +1437,21 @@ class TestFlap(unittest.TestCase, NodeTest):
             model=A('Model', 'B737-333'),
             series=A('Series', 'B737-300'),
             family=A('Family', 'B737 Classic'),
+            ac_type=A('Aircraft Type', 'aeroplane')
         ))
         self.assertFalse(self.node_class.can_operate(
             ('Flap Angle', 'Model', 'Series', 'Family'),
             model=A('Model', None),
             series=A('Series', None),
             family=A('Family', None),
+            ac_type=A('Aircraft Type', 'aeroplane')
+        ))
+        self.assertFalse(self.node_class.can_operate(
+            ('Flap Angle', 'Model', 'Series', 'Family'),
+            model=A('Model', 'AW139'),
+            series=A('Series', 'AW139'),
+            family=A('Family', 'AW139'),
+            ac_type=A('Aircraft Type', 'helicopter')
         ))
         self.assertFalse(self.node_class.can_operate(
             tuple(), frame=A('Frame', 'L382-Hercules')))
@@ -1617,6 +1626,13 @@ class TestFlapExcludingTransition(unittest.TestCase, NodeTest):
             series=A('Series', None),
             family=A('Family', None),
         ))
+        self.assertFalse(self.node_class.can_operate(
+            ('Flap Angle', 'Model', 'Series', 'Family'),
+            model=A('Model', 'AW139'),
+            series=A('Series', 'AW139'),
+            family=A('Family', 'AW139'),
+            ac_type=A('Aircraft Type', 'helicopter')
+        ))
 
     @patch('analysis_engine.library.at')
     def test_derive(self, at):
@@ -1679,6 +1695,13 @@ class TestFlapIncludingTransition(unittest.TestCase, NodeTest):
             model=A('Model', None),
             series=A('Series', None),
             family=A('Family', None),
+        ))
+        self.assertFalse(self.node_class.can_operate(
+            ('Flap Angle', 'Model', 'Series', 'Family'),
+            model=A('Model', 'AW139'),
+            series=A('Series', 'AW139'),
+            family=A('Family', 'AW139'),
+            ac_type=A('Aircraft Type', 'helicopter')
         ))
 
     @patch('analysis_engine.multistate_parameters.at')
@@ -1769,6 +1792,13 @@ class TestFlapLever(unittest.TestCase, NodeTest):
             series=A('Series', 'B737-300'),
             family=A('Family', 'B737 Classic')),
         )
+        self.assertFalse(self.node_class.can_operate(
+            ('Flap Angle', 'Model', 'Series', 'Family'),
+            model=A('Model', 'AW139'),
+            series=A('Series', 'AW139'),
+            family=A('Family', 'AW139'),
+            ac_type=A('Aircraft Type', 'helicopter')
+        ))
 
     @unittest.skip('Test not implemented.')
     def test_derive(self):
