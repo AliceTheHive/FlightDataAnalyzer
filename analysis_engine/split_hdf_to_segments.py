@@ -78,7 +78,7 @@ def _segment_type_and_slice(speed_array, speed_frequency,
                             heading_array, heading_frequency,
                             start, stop, eng_arrays,
                             aircraft_info, thresholds, hdf,
-                            vspeed, dfc, ident):
+                            vspeed):
     """
     Uses the Heading to determine whether the aircraft moved about at all and
     the airspeed to determine if it was a full or partial flight.
@@ -132,8 +132,7 @@ def _segment_type_and_slice(speed_array, speed_frequency,
         # Check speed
         slow_start = speed_array[unmasked_slices[0].start] < thresholds['speed_threshold']
         slow_stop = speed_array[unmasked_slices[-1].stop - 1] < thresholds['speed_threshold']
-        threshold_exceedance = np.ma.sum(
-            speed_array > thresholds['speed_threshold']) / speed_frequency
+        threshold_exceedance = np.sum(np.where(speed_array > thresholds['speed_threshold'], 1, 0)) / speed_frequency
         fast_for_long = threshold_exceedance > thresholds['min_duration']
     else:
         slow_start = slow_stop = fast_for_long = None
@@ -259,19 +258,7 @@ def _segment_type_and_slice(speed_array, speed_frequency,
 
     supf_start_secs, supf_stop_secs, array_start_secs, array_stop_secs = segment_boundaries(segment, boundary)
 
-    '''
-    import matplotlib.pyplot as plt
-    plt.figure(figsize=(12.0, 8.0))
-    plt.plot(speed_array)
-    plt.plot(heading_array)
-    plt.plot(vspeed.array[int(start * vspeed.frequency) : int(stop * vspeed.frequency)])
-    pts = int(stop * dfc.frequency) - int(start * dfc.frequency)
-    plt.plot(np.arange(pts) / dfc.frequency, dfc.array[int(start * dfc.frequency) : int(stop * dfc.frequency)] / 10.0)
-    plt.show()
-    plt.close()
-    '''
-
-    return segment_type, segment, array_start_secs, ident
+    return segment_type, segment, array_start_secs
 
 
 def _get_normalised_split_params(hdf, align_param=None):
@@ -673,7 +660,7 @@ def split_segments(hdf, aircraft_info):
                     segments.append(_segment_type_and_slice(
                         speed_array, speed.frequency, heading.array,
                         heading.frequency, start, dfc_split_index, eng_arrays,
-                        aircraft_info, thresholds, hdf, vspeed, dfc, 'DFC'))
+                        aircraft_info, thresholds, hdf, vspeed))
                     start = dfc_split_index
                     logger.info("'Frame Counter' jumped within slow_slice '%s' "
                                 "at index '%d'.", slow_slice, dfc_split_index)
@@ -695,7 +682,7 @@ def split_segments(hdf, aircraft_info):
             segments.append(_segment_type_and_slice(
                 speed_array, speed.frequency, heading.array, heading.frequency,
                 start, eng_split_index, eng_arrays, aircraft_info, thresholds,
-                hdf, vspeed, dfc, 'Engines'))
+                hdf, vspeed))
             start = eng_split_index
             continue
         else:
@@ -718,7 +705,7 @@ def split_segments(hdf, aircraft_info):
             segments.append(_segment_type_and_slice(
                 speed_array, speed.frequency, heading.array, heading.frequency,
                 start, rot_split_index, eng_arrays, aircraft_info, thresholds,
-                hdf, vspeed, dfc, 'ROT'))
+                hdf, vspeed))
             start = rot_split_index
             logger.info("Splitting at index '%s' where rate of turn was below "
                         "'%s'.", rot_split_index,
@@ -738,16 +725,16 @@ def split_segments(hdf, aircraft_info):
         segments.append(_segment_type_and_slice(
             speed_array, speed.frequency, heading.array, heading.frequency,
             start, speed_secs, eng_arrays, aircraft_info, thresholds, hdf,
-            vspeed, dfc, 'tail'))
+            vspeed))
 
-    '''
+
     import matplotlib.pyplot as plt
     for look in [speed_array, heading.array, split_params_min]:
-        plt.plot(np.linspace(0, speed_secs, len(look)), look/np.ptp(look))
+        if look is not None:
+            plt.plot(np.linspace(0, speed_secs, len(look)), look/np.ptp(look))
     for seg in segments:
         plt.plot([seg[1].start, seg[1].stop], [-0.5,+1])
     plt.show()
-    '''
 
     return segments
 
@@ -779,17 +766,20 @@ def _get_speed_parameter(hdf, aircraft_info):
         thresholds['min_split_duration'] = settings.MINIMUM_SPLIT_DURATION
         thresholds['hash_min_samples'] = settings.AIRSPEED_HASH_MIN_SAMPLES
         thresholds['min_duration'] = settings.AIRSPEED_THRESHOLD_TIME
+
     # We use vertical speed, but as not all aircraft record this, we compute
     # this from pressure altitude which is always available (*60 for fpm).
     alt = hdf.get('Altitude STD')
+    # All aircraft will have Altitude STD, but some test cases do not, hence:
     if alt:
         vspeed = P(name='Vertical Speed', array=np.ma.masked_outside(
-            rate_of_change(alt, 20.0) * 60.0, -5000, 5000),
+            rate_of_change(alt, 60.0) * 60.0, -4000, 4000),
                    frequency=alt.frequency, offset=alt.offset)
         thresholds['vertical_speed_max'] = settings.VERTICAL_SPEED_FOR_CLIMB_PHASE
         thresholds['vertical_speed_min'] = settings.VERTICAL_SPEED_FOR_DESCENT_PHASE
     else:
         vspeed = None
+
     return parameter, vspeed, thresholds
 
 
