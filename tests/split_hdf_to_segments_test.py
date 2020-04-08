@@ -588,10 +588,18 @@ class TestSplitSegments(unittest.TestCase):
         settings.HEADING_RATE_SPLITTING_THRESHOLD = 0.1
         settings.MAX_TIMEBASE_AGE = 365 * 10
         settings.MIN_FAN_RUNNING = 10
+        settings.VERTICAL_SPEED_FOR_CLIMB_PHASE = 800.0
+        settings.VERTICAL_SPEED_FOR_DESCENT_PHASE = -500.0
 
         hdf_path = os.path.join(test_data_path, "split_segments_multiple_types.hdf5")
         temp_path = copy_file(hdf_path)
         hdf = hdf_file(temp_path)
+
+        # Set the airspeed to zero for one segment
+        a = hdf.get('Airspeed')
+        a.array[84756:113640] = 0.0
+        hdf.set_param(a)
+
         self.maxDiff = None
         segment_tuples = split_segments(hdf, {})
         self.assertEqual(len(segment_tuples), 16, msg="Unexpected number of segments detected")
