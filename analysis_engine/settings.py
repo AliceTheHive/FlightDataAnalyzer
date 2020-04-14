@@ -72,7 +72,7 @@ CACHE_PARAMETER_MIN_USAGE = 0
 
 
 # Minimum duration of slow airspeed in seconds to split flights inbetween.
-MINIMUM_SPLIT_DURATION = 100
+MINIMUM_SPLIT_DURATION = 300
 ROTOR_MINIMUM_SPLIT_DURATION = 4
 
 # Minimum duration of a fast airspeed to splt into a segment.
