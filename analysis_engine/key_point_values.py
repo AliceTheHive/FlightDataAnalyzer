@@ -14764,6 +14764,40 @@ class GroundspeedFlapChangeDuringTakeoffMax(KeyPointValueNode):
         self.create_kpvs_within_slices(gspd_masked, takeoff_roll, max_value)
 
 
+class GroundspeedWhileTaxiingTurnConditionalMax(KeyPointValueNode):
+    '''
+    Maximum groundspeed detected during turn while taxiing.
+
+    The rate of change of heading used to detect a turn during taxi is %.2f
+    degrees per second.
+    '''% HEADING_RATE_FOR_TAXI_TURNS
+
+    units = ut.KT
+
+    name = 'Groundspeed While Taxiing Turn Conditional Max'
+
+    def derive(self,
+               gnd_spd=P('Groundspeed Signed'),
+               turns=S('Turning On Ground'),
+               landings=S('Landing'),
+               takeoffs=S('Takeoff'),
+               hdg=P('Heading Continuous'),
+               accel = P('Acceleration Lateral Offset Removed')):
+
+        turns_not_toffs = slices_and_not(turns.get_slices(), takeoffs.get_slices())
+        turns_not_toff_or_lands = slices_and_not(turns_not_toffs, landings.get_slices())
+
+        for turn_slice in turns_not_toff_or_lands:
+            hdg_start = hdg.array[int(turn_slice.start)]
+            hdg_end = hdg.array[int(turn_slice.stop)]
+            dh = (hdg_start - hdg_end + 180) % 360 - 180
+            accel_idx = np.argmax(accel.array[slices_int(turn_slice)]) + turn_slice.start
+            accel_max = accel.array[int(accel_idx)]
+            if abs(dh) > 60.0 and abs(accel_max) > 0.13: # From Doc Boardman's paper.
+                gnd_spd_idx = np.argmax(gnd_spd.array[slices_int(turn_slice)]) + turn_slice.start
+                gnd_spd_max = gnd_spd.array[int_idx(gnd_spd_idx)]
+                self.create_kpv(gnd_spd_idx, gnd_spd_max)
+
 
 ##############################################################################
 # Law
