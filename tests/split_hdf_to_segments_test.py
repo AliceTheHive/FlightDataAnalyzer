@@ -225,15 +225,15 @@ class TestSplitSegments(unittest.TestCase):
         airspeed_array = np.ma.concatenate([np.arange(300, dtype=float),
                                             np.arange(300, 0, -1, dtype=float)])
 
-        airspeed_frequency = 0.5
+        airspeed_frequency = 2
         airspeed_secs = len(airspeed_array) / airspeed_frequency
 
         heading_array = np.ma.arange(len(airspeed_array) / 2, dtype=float) % 360
-        heading_frequency = 0.25
+        heading_frequency = 1
         heading_array.mask = False
 
         eng_array = None
-        eng_frequency = 0.25
+        eng_frequency = 1
 
         dfc_array = np.ma.arange(0, 300, 2)
 
@@ -582,7 +582,7 @@ class TestSplitSegments(unittest.TestCase):
         settings.AIRSPEED_THRESHOLD = 80
         settings.AIRSPEED_THRESHOLD_TIME = 3 * 60
         settings.HEADING_CHANGE_TAXI_THRESHOLD = 60
-        settings.MINIMUM_SPLIT_DURATION = 600
+        settings.MINIMUM_SPLIT_DURATION = 300
         settings.MINIMUM_FAST_DURATION = 0
         settings.MINIMUM_SPLIT_PARAM_VALUE = 0.175
         settings.HEADING_RATE_SPLITTING_THRESHOLD = 0.1

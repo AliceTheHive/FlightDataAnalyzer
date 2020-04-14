@@ -425,7 +425,7 @@ def _split_on_dfc(slice_start_secs, slice_stop_secs, dfc_frequency,
 
     if dfc_indexes.size == 0:
         return None
-    dfc_indexes = dfc_indexes / dfc_frequency + slice_start_secs
+    dfc_indexes = dfc_indexes / dfc_frequency + slice_start_secs + dfc_half_period
     while np.any(np.ediff1d(dfc_indexes) < 600.0):
         # We have two jumps within 5 minutes of each other
         small_jump_idx = np.argmin(np.ediff1d(dfc_indexes))
@@ -664,14 +664,14 @@ def split_segments(hdf, aircraft_info):
                     start = dfc_split_index
                     logger.info("'Frame Counter' jumped within slow_slice '%s' "
                                 "at index '%d'.", slow_slice, dfc_split_index)
+                continue
             else:
                 logger.info("'Frame Counter' did not jump within slow_slice "
                             "'%s'.", slow_slice)
 
         # Split using minimum of engine parameters.
         if eng_split_value is not None and \
-           eng_split_value < settings.MINIMUM_SPLIT_PARAM_VALUE and \
-           not dfc:
+           eng_split_value < settings.MINIMUM_SPLIT_PARAM_VALUE:
             logger.info("Minimum of normalised split parameters ('%s') was "
                         "below  ('%s') within "
                         "slow_slice '%s' at index '%d'.",
@@ -727,7 +727,7 @@ def split_segments(hdf, aircraft_info):
             start, speed_secs, eng_arrays, aircraft_info, thresholds, hdf,
             vspeed))
 
-
+    '''
     import matplotlib.pyplot as plt
     for look in [speed_array, heading.array, split_params_min]:
         if look is not None:
@@ -735,7 +735,7 @@ def split_segments(hdf, aircraft_info):
     for seg in segments:
         plt.plot([seg[1].start, seg[1].stop], [-0.5,+1])
     plt.show()
-
+    '''
     return segments
 
 
