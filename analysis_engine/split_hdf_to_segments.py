@@ -81,7 +81,11 @@ def _segment_type_and_slice(speed_array, speed_frequency,
                             vspeed):
     """
     Uses the Heading to determine whether the aircraft moved about at all and
-    the airspeed to determine if it was a full or partial flight.
+    the airspeed to determine if it was a full or partial flight. Vertical speed
+    identifies invalid flights where no airspeed is recorded.
+
+    Gear on Ground and Collective movement are used for helicopters to improve
+    the identification of operations such as hover taxi and engine test runs.
 
     NO_MOVEMENT: When the aircraft is in the hanger,
     the altitude and airspeed can be tested and record values which look like
@@ -92,6 +96,10 @@ def _segment_type_and_slice(speed_array, speed_frequency,
     the threshold speed for flight for a minimum amount of time, currently 3
     minutes to determine. If not, this segment is identified as GROUND_ONLY,
     probably taxiing, repositioning on the ground or a rejected takeoff.
+
+    INVALID: The aircraft climbed and descended (at a rate which would need
+    forward speed on a helicopter as well as fixed wing) but there was no
+    valid airspeed signal, hence cannot be processed.
 
     START_ONLY: If the airspeed started slow but ended fast, we had a partial
     segment for the start of a flight.
@@ -107,6 +115,7 @@ def _segment_type_and_slice(speed_array, speed_frequency,
     segment_type is one of:
     * 'NO_MOVEMENT' (didn't change heading)
     * 'GROUND_ONLY' (didn't go fast)
+    * 'INVALID' (did climb or descend, but had no valid airspeed)
     * 'START_AND_STOP'
     * 'START_ONLY'
     * 'STOP_ONLY'
