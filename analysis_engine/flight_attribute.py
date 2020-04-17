@@ -835,18 +835,20 @@ class FlightType(FlightAttributeNode):
                             types.TRAINING,
                             types.EMS}:
                 flight_type = afr_type
+            elif engine_check:
+                # Helicopter engine power assurance check which lifted
+                # into the hover at some time
+                flight_type = types.ENGINE_RUN_UP
             else:
                 # TODO: Raise exception if AFR flight type was one of the below?
                 flight_type = types.COMPLETE
+
         elif rejected_to:
             # Rejected takeoff but no takeoff or landing
             flight_type = types.REJECTED_TAKEOFF
         elif engine_check:
             # Helicopter engine power assurance check
             flight_type = types.ENGINE_RUN_UP
-        ##elif fast:
-            ### Midflight as no takeoff, rejected takeoff or landing but went fast
-            ##flight_type = types.INCOMPLETE
         elif mobile:
             # The aircraft moved on the ground.
             flight_type = types.GROUND_RUN
