@@ -122,13 +122,29 @@ def _segment_type_and_slice(speed_array, speed_frequency,
     heading_stop = int(stop * heading_frequency)
     heading_array = heading_array[heading_start:heading_stop]
 
+    slow_start = slow_stop = fast_for_long = ground_only = threshold_exceedance = None
+
+    # Check Heading change to see if the aircraft moved.
+    if eng_arrays is not None:
+        heading_array = np.ma.masked_where(eng_arrays[heading_start:heading_stop] < settings.MIN_FAN_RUNNING, heading_array)
+    hdiff = np.ma.abs(np.ma.diff(heading_array)).sum()
+    did_move = hdiff > settings.HEADING_CHANGE_TAXI_THRESHOLD
+
+    # Did the aircraft climb and descend?
+    vspd_threshold_exceedance = None
+    if vspeed:
+        vert_spd_array = vspeed.array[int(start * vspeed.frequency):int(stop * vspeed.frequency)]
+        vspd_threshold_exceedance = \
+            (np.ma.sum(vert_spd_array > thresholds['vertical_speed_max']) / vspeed.frequency) > thresholds['min_duration'] or \
+            (np.ma.sum(vert_spd_array < thresholds['vertical_speed_min']) / vspeed.frequency) > thresholds['min_duration']
+
+    # Did the aircraft fly fast at some time?
     # remove small gaps between valid data, e.g. brief data spikes
     unmasked_slices = slices_remove_small_gaps(
         np.ma.clump_unmasked(speed_array), 2, speed_frequency)
     # remove small slices to find 'consistent' valid data
     unmasked_slices = slices_remove_small_slices(
         unmasked_slices, 40, speed_frequency)
-
     if unmasked_slices:
         # Check speed
         slow_start = speed_array[unmasked_slices[0].start] < thresholds['speed_threshold']
@@ -136,54 +152,42 @@ def _segment_type_and_slice(speed_array, speed_frequency,
         threshold_exceedance = np.ma.sum(
             speed_array > thresholds['speed_threshold']) / speed_frequency
         fast_for_long = threshold_exceedance > thresholds['min_duration']
-    else:
-        slow_start = slow_stop = fast_for_long = None
 
-    vspd_threshold_exceedance = None
-
-    if vspeed:
-        vert_spd_array = vspeed.array[int(start * vspeed.frequency):int(stop * vspeed.frequency)]
-        vspd_threshold_exceedance = \
-            (np.ma.sum(vert_spd_array > thresholds['vertical_speed_max']) / vspeed.frequency) > thresholds['min_duration'] or \
-            (np.ma.sum(vert_spd_array < thresholds['vertical_speed_min']) / vspeed.frequency) > thresholds['min_duration']
-
-    # Find out if the aircraft moved
+    # Additional checks for start and stop of helicopters, in case the data did not have neat Nr endpoints.
     if aircraft_info and aircraft_info['Aircraft Type'] == 'helicopter':
         # if any gear params use them
         gog = next((p for p in (hdf.get(n) for n in ('Gear On Ground', 'Gear (R) On Ground', 'Gear (L) On Ground')) if p), None)
+        col = next((p for p in (hdf.get(n) for n in ('Collective', 'Collective (1)', 'Collective (2)')) if p), None)
         if gog:
-            gog_start_idx = int(start * gog.frequency)
-            gog_stop_idx = int(stop * gog.frequency)
+            # Backstop check for helicopters that pop into the hover without a heading change.
+            if not did_move:
+                air_slices = slices_remove_small_slices(runs_of_ones(gog.array == 'Air'))
+                did_move = len(air_slices) > 0
+            # Use Gear on Ground as a backup, as the rotor speed may be
+            # 90+% at beginning or end of segment.
             gog_window_samples = int(120 * gog.frequency)
             gog_min_samples = 4 * gog.frequency
-            gog_start_slices = sorted(slices_of_runs(
-                gog.array[gog_start_idx:gog_start_idx + gog_window_samples],
-                min_samples=gog_min_samples, flat=True))
-            gog_stop_slices = sorted(slices_of_runs(
-                gog.array[gog_stop_idx - gog_window_samples:gog_stop_idx],
-                min_samples=gog_min_samples, flat=True))
-            gog_stop_slices = shift_slices(gog_stop_slices, gog_stop_idx - gog_window_samples)
-            if gog_start_slices and gog_stop_slices:
-                # Use Gear on Ground rather than rotor speed as rotors may be
-                # 90+% at beginning or end of segment.
-                slow_start = (gog.array[gog_start_slices[0].start] == 'Ground')
-                slow_stop = (gog.array[gog_stop_slices[-1].stop - 1] == 'Ground')
-            temp = np.ma.array(
-                gog.array[gog_start_idx:gog_stop_idx].data,
-                mask=gog.array[gog_start_idx:gog_stop_idx].mask
-            )
-            gog_test = np.ma.masked_less(temp, 1.0)
-            # We have seeen 12-second spurious gog='Air' signals during rotor rundown. Hence increased limit.
-            did_move = slices_remove_small_slices(np.ma.clump_masked(gog_test),
-                                                  time_limit=30, hz=gog.frequency)
-        else:
-            hdiff = np.ma.abs(np.ma.diff(heading_array)).sum()
-            did_move = hdiff > settings.HEADING_CHANGE_TAXI_THRESHOLD
 
-        # Test the collective. If the collective is below the COLLECTIVE_ON_GROUND_THRESHOLD
-        # then the helicopter is likely be on the ground and we can test for slow_start and slow_stop.
-        col = next((p for p in (hdf.get(n) for n in ('Collective', 'Collective (1)', 'Collective (2)')) if p), None)
-        if col:
+            # Did the helicopter stay on the ground?
+            if not slow_start:
+                gog_start_idx = int(start * gog.frequency)
+                gog_start_slices = sorted(slices_of_runs(
+                    gog.array[gog_start_idx:gog_start_idx + gog_window_samples],
+                    min_samples=gog_min_samples, flat=True))
+                slow_start = (gog.array[gog_start_slices[0].start] == 'Ground')
+
+            if not slow_stop:
+                gog_stop_idx = int(stop * gog.frequency)
+                gog_stop_slices = sorted(slices_of_runs(
+                    gog.array[gog_stop_idx - gog_window_samples:gog_stop_idx],
+                    min_samples=gog_min_samples, flat=True))
+                slow_stop = (gog.array[gog_stop_slices[-1].stop - 1] == 'Ground')
+
+        elif col:
+            # If we can't use gear on ground, we test the collective.
+            # If the collective is below the COLLECTIVE_ON_GROUND_THRESHOLD then the helicopter
+            # is likely be on the ground and we can test for slow_start and slow_stop.
+            col = next((p for p in (hdf.get(n) for n in ('Collective', 'Collective (1)', 'Collective (2)')) if p), None)
             col_window_sample = int(120 * col.frequency)
             col_min_sample = int(4 * col.frequency)
             speedy = np.ma.where(speed_array > thresholds['speed_threshold'])[0]
@@ -210,20 +214,17 @@ def _segment_type_and_slice(speed_array, speed_frequency,
                 col_start = int(start * col.frequency)
                 col_stop = int(stop * col.frequency)
 
-            slow_start = runs_of_ones(
-                col.array[col_start:col_start+col_window_sample] < settings.COLLECTIVE_ON_GROUND_THRESHOLD,
-                min_samples=col_min_sample
-            )
-            slow_stop = runs_of_ones(
-                col.array[col_stop-col_window_sample:col_stop] < settings.COLLECTIVE_ON_GROUND_THRESHOLD,
-                min_samples=col_min_sample
-            )
-    else:
-        # Check Heading change for fixed wing.
-        if eng_arrays is not None:
-            heading_array = np.ma.masked_where(eng_arrays[heading_start:heading_stop] < settings.MIN_FAN_RUNNING, heading_array)
-        hdiff = np.ma.abs(np.ma.diff(heading_array)).sum()
-        did_move = hdiff > settings.HEADING_CHANGE_TAXI_THRESHOLD
+            # We only use the collective settings to improve analysis if the rotor speed is high at the end of the data segment.
+            if not slow_start:
+                slow_start = runs_of_ones(
+                    col.array[col_start:col_start+col_window_sample] < settings.COLLECTIVE_ON_GROUND_THRESHOLD,
+                    min_samples=col_min_sample
+                )
+            if not slow_stop:
+                slow_stop = runs_of_ones(
+                    col.array[col_stop-col_window_sample:col_stop] < settings.COLLECTIVE_ON_GROUND_THRESHOLD,
+                    min_samples=col_min_sample
+                )
 
     if not did_move or (not fast_for_long and eng_arrays is None):
         # added check for not fast for long and no engine params to avoid
@@ -693,7 +694,7 @@ def split_segments(hdf, aircraft_info):
 
         # Split using rate of turn. Q: Should this be considered in other
         # splitting methods.
-        if rate_of_turn is None:
+        if rate_of_turn is None or dfc:
             continue
 
         rot_split_index = _split_on_rot(slice_start_secs, slice_stop_secs,
@@ -728,8 +729,14 @@ def split_segments(hdf, aircraft_info):
 
     '''
     import matplotlib.pyplot as plt
-    for look in [speed_array, heading.array, split_params_min]:
-        plt.plot(np.linspace(0, speed_secs, len(look)), look/np.ptp(look))
+    to_plot = [speed_array, heading.array, split_params_min]
+    if dfc:
+        to_plot.append(dfc.array / 4096.0)
+    for look in to_plot:
+        try:
+            plt.plot(np.linspace(0, speed_secs, len(look)), look/np.ptp(look))
+        except:
+            pass
     for seg in segments:
         plt.plot([seg[1].start, seg[1].stop], [-0.5,+1])
     plt.show()

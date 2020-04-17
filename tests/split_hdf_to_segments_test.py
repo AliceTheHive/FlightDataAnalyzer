@@ -371,6 +371,7 @@ class TestSplitSegments(unittest.TestCase):
                                            np.zeros(10),
                                            np.arange(400, 800)])
         eng_array = None
+        hdf.reliable_frame_counter = False
         segment_tuples = split_segments(hdf, {})
         segment_type, segment_slice, start_padding = segment_tuples[0]
         self.assertEqual(segment_type, 'START_AND_STOP')
@@ -380,6 +381,13 @@ class TestSplitSegments(unittest.TestCase):
         self.assertEqual(segment_type, 'START_AND_STOP')
         self.assertEqual(segment_slice.start, 395)
         self.assertEqual(segment_slice.stop, airspeed_secs)
+
+        hdf.reliable_frame_counter = True
+        segment_tuples = split_segments(hdf, {})
+        segment_type, segment_slice, start_padding = segment_tuples[0]
+        self.assertEqual(segment_type, 'START_AND_STOP')
+        self.assertEqual(segment_slice.start, 0)
+        self.assertEqual(segment_slice.stop, 800)
 
         # Split Segment Split
         hdf.__contains__.return_value = True
@@ -979,7 +987,7 @@ class TestSegmentTypeAndSlice(unittest.TestCase):
         segment_type, segment, array_start_secs = _segment_type_and_slice(
             speed_array, 1, heading_array, 1, 0, 5736, eng_arrays,
             aircraft_info, thresholds, hdf)
-        self.assertEqual(segment_type, 'START_ONLY')
+        self.assertEqual(segment_type, 'START_AND_STOP')
         self.assertEqual(segment, slice(0, 5736))
         self.assertEqual(array_start_secs, 0)
 

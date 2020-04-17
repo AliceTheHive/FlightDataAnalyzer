@@ -352,14 +352,14 @@ class ApproachAndLanding(FlightPhaseNode):
                     low_alt = slice(low_alt.start, landing.slice.stop)
             self.create_phase(low_alt)
 
-    def _derive_helicopter(self, apps, landings):
+    def _derive_helicopter(self, apps, landings, end):
         phases = []
         for new_phase in apps:
             phases = slices_or(phases, [new_phase.slice])
         for new_phase in landings:
             # The phase is extended to make sure we enclose the endpoint
             # so that the touchdown point is included in this phase.
-            phases = slices_or(phases, [slice(new_phase.slice.start, new_phase.slice.stop+2)])
+            phases = slices_or(phases, [slice(new_phase.slice.start, min(new_phase.slice.stop+2, end))])
         self.create_phases(phases)
 
     def derive(self,
@@ -373,7 +373,7 @@ class ApproachAndLanding(FlightPhaseNode):
                landings=S('Landing')):
 
         if ac_type == helicopter:
-            self._derive_helicopter(apps, landings)
+            self._derive_helicopter(apps, landings, len(alt_aal.array))
         else:
             self._derive_aircraft(alt_aal, level_flights, landings)
 

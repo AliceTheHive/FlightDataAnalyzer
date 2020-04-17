@@ -784,6 +784,7 @@ class FlightType(FlightAttributeNode):
     def derive(self, afr_type=A('AFR Type'), fast=S('Fast'), mobile=S('Mobile'),
                liftoffs=KTI('Liftoff'), touchdowns=KTI('Touchdown'),
                touch_and_gos=S('Touch And Go'), rejected_to=S('Rejected Takeoff'),
+               engine_check = S('Helicopter Engine Check'),
                eng_start=KTI('Eng Start'), seg_type=A('Segment Type')):
         '''
         TODO: Detect MID_FLIGHT.
@@ -840,9 +841,12 @@ class FlightType(FlightAttributeNode):
         elif rejected_to:
             # Rejected takeoff but no takeoff or landing
             flight_type = types.REJECTED_TAKEOFF
-        elif fast:
-            # Midflight as no takeoff, rejected takeoff or landing but went fast
-            flight_type = types.INCOMPLETE
+        elif engine_check:
+            # Helicopter engine power assurance check
+            flight_type = types.ENGINE_RUN_UP
+        ##elif fast:
+            ### Midflight as no takeoff, rejected takeoff or landing but went fast
+            ##flight_type = types.INCOMPLETE
         elif mobile:
             # The aircraft moved on the ground.
             flight_type = types.GROUND_RUN
@@ -853,6 +857,8 @@ class FlightType(FlightAttributeNode):
             # TODO: not detected flight type should we fall back to No Movement?
             # should we raise an error
             flight_type = types.INCOMPLETE
+
+        print ('FLIGHT TYPE = %s' %flight_type)
         self.set_flight_attr(flight_type)
 
 

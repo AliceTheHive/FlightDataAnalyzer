@@ -15,6 +15,7 @@ from analysis_engine.library import (
     shift_slice,
     shift_slices,
     repair_mask,
+    slices_above,
     slices_and,
     slices_and_not,
     slices_below,
@@ -137,6 +138,37 @@ class Autorotation(FlightPhaseNode):
                 self.create_phase(shift_slice(slice(split_ends[0].start,
                                                     split_ends[-1].stop ),
                                               desc.slice.start))
+
+
+class HelicopterEngineCheck(FlightPhaseNode):
+    '''
+    We define an engine power assurance check as a period of operation
+    with rotors turning, more than 10% collective and more than
+    20% torque asymmetry.
+
+    The radio altitude check ensures this is not carried out in flight,
+    but allows for the aircraft to lift into the hover or become light
+    on the wheels.
+    '''
+
+    def derive(self, coll=P('Collective'), rtrs=S('Rotors Turning'),
+               rad_alt=P('Altitude Radio'),
+               q_diff=P('Torque Asymmetry'),
+               running=M('Eng (*) All Running'),
+               nr=P('Nr')):
+
+        lows = slices_below(rad_alt.array, 50.0)[1]
+        coll_raised = slices_above(coll.array, 20.0)[1]
+        all_running = runs_of_ones(running.array)
+        tests = slices_and(lows, coll_raised)
+        tests = slices_and(tests, rtrs.get_slices())
+        tests = slices_and(tests, all_running)
+        for test in tests:
+            # A real test engages both engines then splits off one at a time.
+            # This complex test rejects cases where the rotor is started or
+            # stopped with only one engine running.
+            if np.ma.max(q_diff.array[slices_int(test)]) > 20.0:
+                self.create_phase(test)
 
 
 class Hover(FlightPhaseNode):
