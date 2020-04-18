@@ -559,19 +559,18 @@ class AltitudeAAL(DerivedParameterNode):
             # What was the maximum pitch attitude reached in the last 50ft of the descent?
             max_pitch = max(land_pitch[check_slice])
             # and the last index at this attitude is given by:
-            if max_pitch:
-                max_pch_idx = (land_pitch[check_slice] == max_pitch).nonzero()[-1][0]
-                pit_value = closest_unmasked_value(alt_std, lowest_index + max_pch_idx, check_slice.start,
-                                                   check_slice.stop)
-                if pit_value:
-                    pit = pit_value.value
+            max_pch_idx = (land_pitch[check_slice] == max_pitch).nonzero()[-1][0]
+            pit_value = closest_unmasked_value(alt_std, lowest_index + max_pch_idx, check_slice.start,
+                                               check_slice.stop)
+            if pit_value:
+                pit = pit_value.value
 
             '''
             # Quick visual check of the operation of the takeoff point detection.
             import matplotlib.pyplot as plt
             show_slice = slice(0, lowest_index + still_airborne)
-            plt.plot(alt_std[show_slice] - pit)
-            plt.plot(land_pitch[show_slice]*10.0)
+            plt.plot(alt_std[slices_int(show_slice)] - pit)
+            plt.plot(land_pitch[slices_int(show_slice)]*10.0)
             plt.plot(lowest_index + max_pch_idx, 0.0, 'dg')
             plt.show()
             plt.close()
