@@ -860,7 +860,6 @@ class FlightType(FlightAttributeNode):
             # should we raise an error
             flight_type = types.INCOMPLETE
 
-        print ('FLIGHT TYPE = %s' %flight_type)
         self.set_flight_attr(flight_type)
 
 
