@@ -8,6 +8,7 @@ from analysis_engine.node import (
 from analysis_engine.helicopter.flight_phase import (
     Airborne,
     Autorotation,
+    HelicopterEngineCheck,
     Hover,
     HoverTaxi,
     NoseDownAttitudeAdoption,
@@ -152,6 +153,80 @@ class TestAutorotation(unittest.TestCase):
         node.derive(eng_np , nr, descs)
         self.assertEqual(len(node), 2)
 
+
+class TestHelicopterEngineTest(unittest.TestCase):
+
+    def setUp(self):
+        self.node_class = HelicopterEngineCheck
+
+    def test_can_operate(self):
+        available = ('Collective', 'Rotors Turning', 'Altitude Radio',
+                     'Torque Asymmetry', 'Eng (*) All Running')
+        self.assertFalse(self.node_class.can_operate([], ac_type=helicopter))
+        self.assertTrue(self.node_class.can_operate(available, ac_type=helicopter))
+        self.assertFalse(self.node_class.can_operate(available, ac_type=aeroplane))
+
+    def test_derive_basic(self):
+        coll = P(name='Collective', array=np.ma.concatenate((np.zeros(10), np.ones(20) * 30, np.zeros(10))))
+        rtrs = buildsections('Rotors Turning', [2, 38])
+        rad_alt = P(name='Altitude Radio', array=np.ma.concatenate((np.zeros(5), np.ones(30) * 10, np.zeros(5))))
+        q_diff = P(name='Torque Asymmetry', array=np.ma.concatenate((np.zeros(15), np.ones(10) * 40, np.zeros(15))))
+        running = M(name='Eng (*) All Running', array=np.ma.concatenate((np.zeros(3), np.ones(34), np.zeros(3))),
+                    values_mapping={0:'Not Running', 1:'Running'})
+        node = HelicopterEngineCheck()
+        node.derive(coll, rtrs, rad_alt, q_diff, running)
+        self.assertEqual(len(node), 1)
+        self.assertEqual(node[0].slice.start, 10)
+        self.assertEqual(node[0].slice.stop, 30)
+
+    def test_derive_invalid_tests(self):
+        coll = P(name='Collective', array=np.ma.concatenate((np.zeros(10), np.ones(20) * 30, np.zeros(10))))
+        rtrs = buildsections('Rotors Turning', [2, 38])
+        rad_alt = P(name='Altitude Radio', array=np.ma.concatenate((np.zeros(5), np.ones(30) * 10, np.zeros(5))))
+        q_diff = P(name='Torque Asymmetry', array=np.ma.concatenate((np.zeros(15), np.ones(10) * 40, np.zeros(15))))
+        running = M(name='Eng (*) All Running', array=np.ma.concatenate((np.zeros(3), np.ones(34), np.zeros(3))),
+                    values_mapping={0:'Not Running', 1:'Running'})
+        node = HelicopterEngineCheck()
+        # Not enough collective
+        coll = P(name='Collective', array=np.ma.concatenate((np.zeros(10), np.ones(20) * 10, np.zeros(10))))
+        node.derive(coll, rtrs, rad_alt, q_diff, running)
+        self.assertEqual(len(node), 0)
+        coll = P(name='Collective', array=np.ma.concatenate((np.zeros(10), np.ones(20) * 30, np.zeros(10))))
+
+        # Rotors not turning
+        rtrs = buildsections('Rotors Turning', [0, 1])
+        node = HelicopterEngineCheck()
+        node.derive(coll, rtrs, rad_alt, q_diff, running)
+        self.assertEqual(len(node), 0)
+        rtrs = buildsections('Rotors Turning', [2, 38])
+
+        # Rad alt out of range (fully masked still runs)
+        rad_alt = P(name='Altitude Radio', array=np.ma.concatenate((np.zeros(5), np.ones(30) * 100, np.zeros(5))))
+        node = HelicopterEngineCheck()
+        node.derive(coll, rtrs, rad_alt, q_diff, running)
+        self.assertEqual(len(node), 0)
+        rad_alt.array.mask=True
+        node = HelicopterEngineCheck()
+        node.derive(coll, rtrs, rad_alt, q_diff, running)
+        self.assertEqual(len(node), 1)
+        # Running on the ground is OK from now on...
+        rad_alt = P(name='Altitude Radio', array=(np.zeros(40)))
+
+        # Inadequate torque asymmetry
+        q_diff = P(name='Torque Asymmetry', array=np.ma.concatenate((np.zeros(15), np.ones(10) * 5, np.zeros(15))))
+        node = HelicopterEngineCheck()
+        node.derive(coll, rtrs, rad_alt, q_diff, running)
+        self.assertEqual(len(node), 0)
+        q_diff = P(name='Torque Asymmetry', array=np.ma.concatenate((np.zeros(15), np.ones(10) * 40, np.zeros(15))))
+
+        # Only one engine running
+        running = M(name='Eng (*) All Running', array=np.ma.array([0]*40),
+                    values_mapping={0: 'Not Running', 1: 'Running'})
+        node = HelicopterEngineCheck()
+        node.derive(coll, rtrs, rad_alt, q_diff, running)
+        self.assertEqual(len(node), 0)
+        running = M(name='Eng (*) All Running', array=np.ma.concatenate((np.zeros(3), np.ones(34), np.zeros(3))),
+                    values_mapping={0: 'Not Running', 1: 'Running'})
 
 class TestHover(unittest.TestCase):
 

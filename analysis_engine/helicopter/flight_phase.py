@@ -150,19 +150,27 @@ class HelicopterEngineCheck(FlightPhaseNode):
     but allows for the aircraft to lift into the hover or become light
     on the wheels.
     '''
+    @classmethod
+    def can_operate(cls, available, ac_type=A('Aircraft Type')):
+        return ac_type == helicopter and \
+               all_of(('Collective', 'Rotors Turning', 'Altitude Radio',
+                     'Torque Asymmetry', 'Eng (*) All Running'), available)
 
     def derive(self, coll=P('Collective'), rtrs=S('Rotors Turning'),
                rad_alt=P('Altitude Radio'),
                q_diff=P('Torque Asymmetry'),
-               running=M('Eng (*) All Running'),
-               nr=P('Nr')):
+               running=M('Eng (*) All Running')):
 
-        lows = slices_below(rad_alt.array, 50.0)[1]
-        coll_raised = slices_above(coll.array, 20.0)[1]
-        all_running = runs_of_ones(running.array)
-        tests = slices_and(lows, coll_raised)
+        # Was the collective raised?
+        tests = slices_above(coll.array, 20.0)[1]
+        # Were we on the ground or low (if the rad alt was working)
+        if np.ma.count(rad_alt.array):
+            tests = slices_and(tests, slices_below(rad_alt.array, 50.0)[1])
+        # Was the rotor runnning throughout?
         tests = slices_and(tests, rtrs.get_slices())
-        tests = slices_and(tests, all_running)
+        # Were both engines running?
+        tests = slices_and(tests, runs_of_ones(running.array))
+
         for test in tests:
             # A real test engages both engines then splits off one at a time.
             # This complex test rejects cases where the rotor is started or
