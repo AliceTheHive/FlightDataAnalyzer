@@ -21168,3 +21168,29 @@ class AltitudeDeviationFromAltitudeSelectedMax(KeyPointValueNode):
             on_final_slice = below_clumps[-1]
             on_final_slice = shift_slice(on_final_slice, slice_.start)
             dist_array[on_final_slice] = np.ma.masked
+
+
+class RunwayOccupancyDuration(KeyPointValueNode):
+    '''
+    Runway occupancy time in seconds.
+    '''
+
+    units = ut.SECOND
+
+    def derive(self, begins=KTI('0 NM From Threshold'),
+               ends=KTI('Landing Turn Off Runway')):
+
+        # We are not interested in go-arounds or touch and gos,
+        # so only use the last approach and hence one turnoff.
+        begin_index = begins[-1].index
+        end_index = ends.get_next(begin_index).index
+        self.create_kpv(index = begin_index,
+                        value = end_index - begin_index)
+
+
+
+
+
+
+
+

@@ -653,6 +653,7 @@ from analysis_engine.key_point_values import (
     RudderPedalForceMax,
     RudderPreflightCheck,
     RudderReversalAbove50Ft,
+    RunwayOccupancyDuration,
     SATMax,
     SingleEngineDuringTaxiInDuration,
     SingleEngineDuringTaxiOutDuration,
@@ -20223,6 +20224,37 @@ class TestRudderPedalForceMax(unittest.TestCase, NodeTest):
                 items=[KeyPointValue(
                     index=21658.0, value=-23.944020961616012,
                     name='Rudder Pedal Force Max')]))
+
+
+##############################################################################
+# Runway Occupancy
+
+
+class TestRunwayOccupancyDuration(unittest.TestCase):
+
+    def test_can_operate(self):
+        self.assertEqual(RunwayOccupancyDuration.get_operational_combinations(),
+                         [('0 NM From Threshold', 'Landing Turn Off Runway'),])
+
+
+    def test_derive(self):
+        begin = KTI('0 NM From Threshold', items=[KeyTimeInstance(10, '0 NM From Threshold')])
+        end = KTI('Landing Turn Off Runway', items=[KeyTimeInstance(23.4, 'Landing Turn Off Runway')])
+        rod = RunwayOccupancyDuration()
+        rod.derive(begin, end)
+        self.assertEqual(rod[0].index, 10)
+        self.assertAlmostEqual(rod[0].value, 13.4)
+
+    def test_derive_touch_and_go(self):
+        begin = KTI('0 NM From Threshold', items=[KeyTimeInstance(10, '0 NM From Threshold'),
+                                                  KeyTimeInstance(40, '0 NM From Threshold')])
+        end = KTI('Landing Turn Off Runway', items=[KeyTimeInstance(53.4, 'Landing Turn Off Runway')])
+        rod = RunwayOccupancyDuration()
+        rod.derive(begin, end)
+        self.assertEqual(len(rod), 1)
+        self.assertEqual(rod[0].index, 40)
+        self.assertAlmostEqual(rod[0].value, 13.4)
+
 
 
 ##############################################################################
