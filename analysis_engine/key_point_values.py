@@ -21186,11 +21186,3 @@ class RunwayOccupancyDuration(KeyPointValueNode):
         end_index = ends.get_next(begin_index).index
         self.create_kpv(index = begin_index,
                         value = end_index - begin_index)
-
-
-
-
-
-
-
-
