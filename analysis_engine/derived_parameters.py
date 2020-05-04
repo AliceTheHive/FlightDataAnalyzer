@@ -1356,9 +1356,7 @@ class AltitudeVisualizationWithGroundOffset(DerivedParameterNode):
     def derive(self,
                alt_aal=P('Altitude AAL'),
                alt_std=P('Altitude STD Smoothed'),
-               l_rwy=A('FDR Landing Runway'),
                l_apt=A('FDR Landing Airport'),
-               t_rwy=A('FDR Takeoff Runway'),
                t_apt=A('FDR Takeoff Airport'),
                climbs=S('Climb'),
                descents=S('Descent'),
@@ -1366,10 +1364,8 @@ class AltitudeVisualizationWithGroundOffset(DerivedParameterNode):
                apps=App('Approach Information')):
 
         # Attempt to determine elevations at takeoff and landing:
-        t_elev = t_rwy.value.get('end', {}).get('elevation') if t_rwy else None
-        t_elev = t_elev or (t_apt.value.get('elevation') if t_apt else None)
-        l_elev = l_rwy.value.get('start', {}).get('elevation') if l_rwy else None
-        l_elev = l_elev or (l_apt.value.get('elevation') if l_apt else None)
+        t_elev = t_apt.value.get('elevation') if t_apt else None
+        l_elev = l_apt.value.get('elevation') if l_apt else None
 
         if t_elev is None and l_elev is None:
             self.warning('No takeoff and landing elevation, using Altitude STD Smoothed.')
@@ -1405,10 +1401,10 @@ class AltitudeVisualizationWithGroundOffset(DerivedParameterNode):
                              'No Descent section found for this Approach')
                 continue
 
-            if app.approach_runway is not None:
-                rwy_elev = app.approach_runway.get('start', {}).get('elevation')
-                if rwy_elev is not None:
-                    l_elev = rwy_elev
+            if app.airport is not None:
+                apt_elev = app.airport.get('elevation')
+                if apt_elev is not None:
+                    l_elev = apt_elev
 
             if l_elev is None:
                 continue
