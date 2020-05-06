@@ -18,6 +18,7 @@ from analysis_engine.node import P
 from analysis_engine.library import (align,
                                      blend_parameters,
                                      calculate_timebase,
+                                     find_runs,
                                      hash_array,
                                      min_value,
                                      mask_outside_slices,
@@ -844,14 +845,21 @@ def has_constant_time(hdf):
     the flights, but it is constant. In those cases we assume that the initial
     time is the actual time of the recorder power-on.  We can use it as the
     more precise fallback_dt.
+
+    For "flat" time, the Minute parameter might jump. We consider the time as "flat"
+    as long as the Minute stays the same for at least 5 minutes on average.
     """
     minutes = hdf.get('Minute')
     if minutes is None:
         return False  # We don't know
 
     samples = minutes.array.size
-    duration = samples * minutes.hz
-    return samples > 5 and duration > 5 and np.ptp(minutes.array) == 0
+    duration = samples / minutes.hz
+    *_, run_lengths = find_runs(np.ma.compressed(minutes.array))
+    avg_run_lengths = run_lengths.mean()
+    avg_run_duration = avg_run_lengths / minutes.hz
+
+    return samples > 5 and duration > 5 and avg_run_duration >= min(60*5, duration)
 
 
 def calculate_fallback_dt(hdf, fallback_dt=None, validation_dt=None,

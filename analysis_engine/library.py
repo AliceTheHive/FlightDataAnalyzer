@@ -880,7 +880,15 @@ def calculate_timebase(years, months, days, hours, mins, secs):
        len(hours) == len(mins) == len(secs):
         raise ValueError("Arrays must be of same length")
 
-    for step, (yr, mth, day, hr, mn, sc) in enumerate(np.transpose((years, months, days, hours, mins, secs))):
+    # Fill masked values with negative numbers to speed up iteration
+    years = years.filled(fill_value=-1).astype(int)
+    months = months.filled(fill_value=-1).astype(int)
+    days = days.filled(fill_value=-1).astype(int)
+    hours = hours.filled(fill_value=-1).astype(int)
+    mins = mins.filled(fill_value=-1).astype(int)
+    secs = secs.filled(fill_value=-1).astype(int)
+
+    for step, (yr, mth, day, hr, mn, sc) in enumerate(np.stack((years, months, days, hours, mins, secs), axis=-1)):
 
         #TODO: Try using numpy datetime functions for speedup?
         #try:
@@ -889,12 +897,12 @@ def calculate_timebase(years, months, days, hours, mins, secs):
             #continue
         # same for time?
 
-        if yr is not None and yr is not np.ma.masked and yr < 100:
+        if 0 <= yr < 100:
             yr = convert_two_digit_to_four_digit_year(yr, current_year)
 
         try:
-            dt = datetime(int(yr), int(mth), int(day), int(hr), int(mn), int(sc), tzinfo=pytz.utc)
-        except (ValueError, TypeError, np.ma.core.MaskError):
+            dt = datetime(yr, mth, day, hr, mn, sc, tzinfo=pytz.utc)
+        except (ValueError, TypeError):
             # ValueError is raised if values are out of range, e.g. 0..59.
             # Q: Should we validate these parameters and switch to fallback_dt
             #    if it fails?
@@ -8841,3 +8849,36 @@ def maintain_altitude(distance, hz=1.0):
     clumps = ezclump(within_50ft)
     return any((clump.stop - clump.start) > 20 * hz for clump in clumps)
 
+
+def find_runs(x):
+    """
+    Find runs of consecutive items in an array.
+
+    Credit to Alistair Miles:
+    https://gist.github.com/alimanfoo/c5977e87111abe8127453b21204c1065
+    """
+
+    # ensure array
+    x = np.asanyarray(x)
+    if x.ndim != 1:
+        raise ValueError('only 1D array supported')
+    n = x.shape[0]
+
+    # handle empty array
+    if n == 0:
+        return np.array([]), np.array([]), np.array([])
+
+    else:
+        # find run starts
+        loc_run_start = np.empty(n, dtype=bool)
+        loc_run_start[0] = True
+        np.not_equal(x[:-1], x[1:], out=loc_run_start[1:])
+        run_starts = np.nonzero(loc_run_start)[0]
+
+        # find run values
+        run_values = x[loc_run_start]
+
+        # find run lengths
+        run_lengths = np.diff(np.append(run_starts, n))
+
+        return run_values, run_starts, run_lengths

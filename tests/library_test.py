@@ -14,6 +14,7 @@ import os
 import pytz
 import types
 import unittest
+import pytest
 import yaml
 
 from  collections import Counter
@@ -83,6 +84,7 @@ from analysis_engine.library import (
     find_climb_cruise_descent,
     find_edges,
     find_edges_on_state_change,
+    find_runs,
     find_slices_overlap,
     find_toc_tod,
     find_low_alts,
@@ -2089,12 +2091,13 @@ class TestCalculateTimebase(unittest.TestCase):
     last_year = datetime.now().year - 1
     def test_calculate_timebase_zero_year(self):
         # 6th second is the first valid datetime(2020,12,25,23,59,0)
-        years = [None] * 6 + [0] * 19  # 6 sec offset
-        months = [None] * 5 + [12] * 20
-        days = [None] * 4 + [24] * 5 + [25] * 16
-        hours = [None] * 3 + [23] * 7 + [0] * 15
-        mins = [None] * 2 + [59] * 10 + [1] * 13
-        secs = [None] * 1 + list(range(55, 60)) + list(range(19))  # 6th second in next hr
+        years = np.ma.repeat((np.ma.masked, 0), (6, 19)) # 6 sec offset
+        months = np.ma.repeat((np.ma.masked, 12), (5, 20))
+        days = np.ma.repeat((np.ma.masked, 24, 25), (4, 5, 16))
+        hours = np.ma.repeat((np.ma.masked, 23, 0), (3, 7, 15))
+        mins = np.ma.repeat((np.ma.masked, 59, 1), (2, 10, 13))
+        secs = np.ma.concatenate(([0], np.arange(55, 60), np.arange(19)))
+        secs[0] = np.ma.masked
         start_dt = calculate_timebase(years, months, days, hours, mins, secs)
 
         #>>> datetime(2020,12,25,0,1,19) - timedelta(seconds=25)
@@ -2104,12 +2107,13 @@ class TestCalculateTimebase(unittest.TestCase):
     @unittest.skip("Validation of year moved outside of calculate_timebase - invalid test?")
     def test_calculate_timebase_future_year(self):
         # a few valid years followed by many invalid
-        years = [self.last_year] * 15 + [2999] * 10
-        months = [None] * 5 + [12] * 20
-        days = [None] * 4 + [24] * 5 + [25] * 16
-        hours = [None] * 3 + [23] * 7 + [0] * 15
-        mins = [None] * 2 + [59] * 10 + [1] * 13
-        secs = [None] * 1 + list(range(55, 60)) + list(range(19))  # 6th second in next hr
+        years = np.ma.repeat((self.last_year, 2999), (15, 10))
+        months = np.ma.repeat((np.ma.masked, 12), (5, 20))
+        days = np.ma.repeat((np.ma.masked, 24, 25), (4, 5, 16))
+        hours = np.ma.repeat((np.ma.masked, 23, 0), (3, 7, 15))
+        mins = np.ma.repeat((np.ma.masked, 59, 1), (2, 10, 13))
+        secs = np.ma.concatenate(([0], np.arange(55, 60), np.arange(19)))  # 6th second in next hr
+        secs[0] = np.ma.masked
         start_dt = calculate_timebase(years, months, days, hours, mins, secs)
 
         #>>> datetime(2020,12,25,0,1,19) - timedelta(seconds=25)
@@ -2118,41 +2122,44 @@ class TestCalculateTimebase(unittest.TestCase):
 
     def test_calculate_timebase(self):
         # 6th second is the first valid datetime(2020,12,25,23,59,0)
-        years = [None] * 6 + [self.last_year] * 19  # 6 sec offset
-        months = [None] * 5 + [12] * 20
-        days = [None] * 4 + [24] * 5 + [25] * 16
-        hours = [None] * 3 + [23] * 7 + [0] * 15
-        mins = [None] * 2 + [59] * 10 + [1] * 13
-        secs = [None] * 1 + list(range(55, 60)) + list(range(19))  # 6th second in next hr
+        years = np.ma.repeat((np.ma.masked, self.last_year), (6, 19)) # 6 sec offset
+        months = np.ma.repeat((np.ma.masked, 12), (5, 20))
+        days = np.ma.repeat((np.ma.masked, 24, 25), (4, 5, 16))
+        hours = np.ma.repeat((np.ma.masked, 23, 0), (3, 7, 15))
+        mins = np.ma.repeat((np.ma.masked, 59, 1), (2, 10, 13))
+        secs = np.ma.concatenate(([0], np.arange(55, 60), np.arange(19)))  # 6th second in next hr
+        secs[0] = np.ma.masked
         start_dt = calculate_timebase(years, months, days, hours, mins, secs)
 
         #>>> datetime(2020,12,25,0,1,19) - timedelta(seconds=25)
         #datetime.datetime(2020, 12, 25, 0, 0, 50)
         self.assertEqual(start_dt, datetime(self.last_year, 12, 25, 0, 0, 54, tzinfo=pytz.utc))
 
-    def test_no_valid_datetimes_raises_valueerror(self):
-        years = [None] * 25
-        months = [None] * 25
-        days = [None] * 4 + [24] * 5 + [25] * 16
-        hours = [None] * 3 + [23] * 7 + [0] * 15
-        mins = [None] * 2 + [59] * 10 + [1] * 13
-        secs = [None] * 1 + list(range(55, 60)) + list(range(19))  # 6th second in next hr
+    def test_no_valid_datetimes_raises_invaliddatetime(self):
+        years = np.ma.repeat((np.ma.masked, ), (25, )) # 6 sec offset
+        months = np.ma.repeat((np.ma.masked, ), (25, ))
+        days = np.ma.repeat((np.ma.masked, 24, 25), (4, 5, 16))
+        hours = np.ma.repeat((np.ma.masked, 23, 0), (3, 7, 15))
+        mins = np.ma.repeat((np.ma.masked, 59, 1), (2, 10, 13))
+        secs = np.ma.concatenate(([0], np.arange(55, 60), np.arange(19)))  # 6th second in next hr
+        secs[0] = np.ma.masked
         self.assertRaises(InvalidDatetime, calculate_timebase, years, months, days, hours, mins, secs)
 
     def test_uneven_length_arrays(self):
         "Tests that the uneven drabs raises ValueError"
         # You should always pass in complete arrays at the moment!
-        years = [None] * 1 + [2020] * 10  # uneven
-        months = [None] * 5 + [12] * 20
-        days = [None] * 4 + [24] * 5 + [25] * 16
-        hours = [None] * 3 + [23] * 7 + [0] * 1 # uneven
-        mins = [None] * 2 + [59] * 10 + [1] * 13
-        secs = [None] * 1 + list(range(55, 60)) + list(range(19))
+        years = np.ma.repeat((np.ma.masked, 2020), (1, 10))  # uneven
+        months = np.ma.repeat((np.ma.masked, 12), (5, 20))
+        days = np.ma.repeat((np.ma.masked, 24, 25), (4, 5, 16))
+        hours = np.ma.repeat((np.ma.masked, 23, 0), (3, 7, 1))  # uneven
+        mins = np.ma.repeat((np.ma.masked, 59, 1), (2, 10, 13))
+        secs = np.ma.concatenate(([0], np.arange(55, 60), np.arange(19)))  # 6th second in next hr
+        secs[0] = np.ma.masked
+
         self.assertRaises(ValueError, calculate_timebase,
                           years, months, days, hours, mins, secs)
 
     def test_no_change_in_dt_picks_it_as_start(self):
-        # also tests using numpy masked arrays
         years = np.ma.array([self.last_year] * 20)  # 6 sec offset
         months = np.ma.array([12] * 20)
         days = np.ma.array([25] * 20)
@@ -2163,22 +2170,22 @@ class TestCalculateTimebase(unittest.TestCase):
         self.assertEqual(start_dt, datetime(self.last_year,12,25,23,0,0, tzinfo=pytz.utc))
 
     def test_real_data_params_2_digit_year(self):
-        years = load_compressed(os.path.join(test_data_path, 'year.npz'))
-        months = load_compressed(os.path.join(test_data_path, 'month.npz'))
-        days = load_compressed(os.path.join(test_data_path, 'day.npz'))
-        hours = load_compressed(os.path.join(test_data_path, 'hour.npz'))
-        mins = load_compressed(os.path.join(test_data_path, 'minute.npz'))
-        secs = load_compressed(os.path.join(test_data_path, 'second.npz'))
+        years = np.ma.array(load_compressed(os.path.join(test_data_path, 'year.npz')))
+        months = np.ma.array(load_compressed(os.path.join(test_data_path, 'month.npz')))
+        days = np.ma.array(load_compressed(os.path.join(test_data_path, 'day.npz')))
+        hours = np.ma.array(load_compressed(os.path.join(test_data_path, 'hour.npz')))
+        mins = np.ma.array(load_compressed(os.path.join(test_data_path, 'minute.npz')))
+        secs = np.ma.array(load_compressed(os.path.join(test_data_path, 'second.npz')))
         start_dt = calculate_timebase(years, months, days, hours, mins, secs)
         self.assertEqual(start_dt, datetime(2011, 12, 30, 8, 20, 36, tzinfo=pytz.utc))
 
     def test_real_data_params_no_year(self):
-        months = load_compressed(os.path.join(test_data_path, 'month.npz'))
-        days = load_compressed(os.path.join(test_data_path, 'day.npz'))
-        hours = load_compressed(os.path.join(test_data_path, 'hour.npz'))
-        mins = load_compressed(os.path.join(test_data_path, 'minute.npz'))
-        secs = load_compressed(os.path.join(test_data_path, 'second.npz'))
-        years = np.array([2012]*len(months)) # fixed year
+        months = np.ma.array(load_compressed(os.path.join(test_data_path, 'month.npz')))
+        days = np.ma.array(load_compressed(os.path.join(test_data_path, 'day.npz')))
+        hours = np.ma.array(load_compressed(os.path.join(test_data_path, 'hour.npz')))
+        mins = np.ma.array(load_compressed(os.path.join(test_data_path, 'minute.npz')))
+        secs = np.ma.array(load_compressed(os.path.join(test_data_path, 'second.npz')))
+        years = np.ma.array([2012]*len(months)) # fixed year
         start_dt = calculate_timebase(years, months, days, hours, mins, secs)
         self.assertEqual(start_dt, datetime(2012, 12, 30, 8, 20, 36, tzinfo=pytz.utc))
 
@@ -2187,6 +2194,26 @@ class TestCalculateTimebase(unittest.TestCase):
     def test_using_offset_for_seconds(self):
         # TODO: check offset milliseconds are applied to the timestamps
         self.assertFalse(True)
+
+    def test_calculate_timebase_short_masked_year(self):
+        # 6th second is the first valid datetime(2020,12,25,23,59,0)
+        years = np.ma.repeat((0, 19), (6, 19)) # 6 sec offset
+        years[:6] = np.ma.masked
+        months = np.ma.repeat((0, 12), (5, 20))
+        months[:5] = np.ma.masked
+        days = np.ma.repeat((0, 24), (4, 21))
+        days[:4] = np.ma.masked
+        hours = np.ma.repeat((0, 23), (3, 22))
+        hours[:3] = np.ma.masked
+        mins = np.ma.repeat((0, 59), (2, 23))
+        mins[:2] = np.ma.masked
+        secs = np.ma.repeat((0, 59), (1, 24))
+        secs[0] = np.ma.masked
+        start_dt = calculate_timebase(years, months, days, hours, mins, secs)
+
+        #>>> datetime(2020,12,25,0,1,19) - timedelta(seconds=25)
+        #datetime.datetime(2020, 12, 25, 0, 0, 50)
+        self.assertEqual(start_dt, datetime(2019, 12, 24, 23, 59, 59-6, tzinfo=pytz.utc))
 
 
 class TestConvertTwoDigitToFourDigitYear(unittest.TestCase):
@@ -9029,3 +9056,58 @@ class TestMaintainAltitude(unittest.TestCase):
         target = np.ma.ones(30) * 2000
         distance = altitude - target
         self.assertFalse(maintain_altitude(distance))
+
+
+class TestFindRuns:
+    def test_all_the_same(self):
+        a = np.ones(20)
+
+        run_values, run_starts, run_lengths = find_runs(a)
+
+        np.testing.assert_array_equal(run_values, [1])
+        np.testing.assert_array_equal(run_starts, [0])
+        np.testing.assert_array_equal(run_lengths, [20])
+
+    def test_two_islands(self):
+        a = np.repeat((1, 2), (10, 20))
+
+        run_values, run_starts, run_lengths = find_runs(a)
+
+        np.testing.assert_array_equal(run_values, [1, 2])
+        np.testing.assert_array_equal(run_starts, [0, 10])
+        np.testing.assert_array_equal(run_lengths, [10, 20])
+
+    def test_two_distinct_islands_with_same_value(self):
+        a = np.repeat((1, 2, 1), (10, 20, 10))
+
+        run_values, run_starts, run_lengths = find_runs(a)
+
+        np.testing.assert_array_equal(run_values, [1, 2, 1])
+        np.testing.assert_array_equal(run_starts, [0, 10, 30])
+        np.testing.assert_array_equal(run_lengths, [10, 20, 10])
+
+    def test_monotonic_serie(self):
+        a = np.arange(5)
+
+        run_values, run_starts, run_lengths = find_runs(a)
+
+        np.testing.assert_array_equal(run_values, list(range(5)))
+        np.testing.assert_array_equal(run_starts, list(range(5)))
+        np.testing.assert_array_equal(run_lengths, np.ones(5))
+
+    def test_higher_dim_array_raises_value_error(self):
+        a = np.arange(6).reshape((2, 3))
+
+        with pytest.raises(ValueError) as excinfo:
+            run_values, run_starts, run_lengths = find_runs(a)
+
+        assert "only 1D array supported" in str(excinfo.value)
+
+    def test_one_element_array(self):
+        a = np.array([1])
+
+        run_values, run_starts, run_lengths = find_runs(a)
+
+        np.testing.assert_array_equal(run_values, [1])
+        np.testing.assert_array_equal(run_starts, [0])
+        np.testing.assert_array_equal(run_lengths, [1])
