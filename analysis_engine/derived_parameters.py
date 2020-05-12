@@ -1325,6 +1325,13 @@ class AltitudeVisualizationWithGroundOffset(DerivedParameterNode):
 
     If we are unable to determine either the takeoff or landing elevations,
     we use the Altitude STD Smoothed parameter.
+
+    The behaviour for this parameter is tailored to work well with X-Plane, where the
+    airport scenery is flat at a height equal to the airport elevation. It is also used
+    for Google Earth export. There, the ground sections are clamped to the ground. This
+    means that at liftoff, the model will use an altitude just above the airport
+    elevation, which might place the model into the ground or high above the ground as
+    the liftoff point elevation does not necessarily coincide with the airport elevation.
     '''
 
     units = ut.FT
