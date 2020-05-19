@@ -3224,7 +3224,8 @@ def integrate(array, frequency, initial_value=0.0, scale=1.0,
         ##result[-1] += integrand[-1]*s*k
 
     if extend:
-        first_value = integrand.compressed()[0]
+        idx = 0 if direction == 'forwards' else -1
+        first_value = integrand.compressed()[idx]
         result += first_value * 2. * s * k
 
     return result
