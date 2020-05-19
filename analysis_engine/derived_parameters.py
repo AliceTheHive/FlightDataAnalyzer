@@ -4564,69 +4564,44 @@ class ApproachFlightPathAngle(DerivedParameterNode):
     '''
     This parameter calculates the slope angle (in degrees) of a landing.
 
-    The Altitude AAL is adjusted according to the ISA standard using SAT at landing.
-    Parameter is calculated from the start of the approach phase to 200ft to avoid
-    spike as the angle rapidly changes when passing over the aiming point.
-    At 500-200 Coreg (correlation and linear regression) calculations is used
-    to further straighten the path to a point between the aiming point and the
-    landing point. This means both 'Aiming Point Range' and 'Distance To Landing'.
-    The distance to the aiming point (piano keys) is used in preference but can
-    fallback to using landing point distance.
+    It initially uses Slope Angle To Landing but gradually transitions to Slope Angle
+    To Aiming Point between 500ft and 200ft.
     '''
     units = ut.DEGREE
 
     @classmethod
     def can_operate(cls, available):
-        return all_of(('Altitude AAL', 'SAT', 'Approach And Landing'),
+        return all_of(('Altitude AAL', 'Approach And Landing'),
                       available) and \
-               any_of(('Aiming Point Range', 'Distance To Landing'), available)
+               any_of(('Slope Angle To Landing', 'Slope Angle To Aiming Point'), available)
 
     def derive(self, alt_aal=P('Altitude AAL'),
-               dist_aim=P('Aiming Point Range'),
-               dist_land=P('Distance To Landing'),
-               sat=P('SAT'),
+               slope_ldg=P('Slope Angle To Landing'),
+               slope_aim=P('Slope Angle To Aiming Point'),
                apps=S('Approach And Landing')):
-        dist = dist_aim or dist_land
-        self.array = np_ma_masked_zeros_like(alt_aal.array)
+        slope = slope_ldg or slope_aim
+        self.array = np.ma.masked_where(alt_aal.array <= 200, slope.array)
+        if slope_ldg is None or slope_aim is None:
+            # Only one slope reference. Nothing more to do
+            return
+
+        # Let's make the transition from 'slope angle to landing' to 'slope angle to
+        # aiming point' between 500ft and 200ft.
         for app in apps:
-            if not np.ma.count(alt_aal.array[app.slice]):
-                continue
-            # What's the temperature deviation from ISA at landing?
-            try:
-                dev = from_isa(alt_aal.array[app.slice].compressed()[-1],
-                               sat.array[app.slice].compressed()[-1])
-            except IndexError:
-                continue  # either array is entirely masked during slice
-
-            # now correct the altitude for temperature deviation.
-            alt = alt_dev2alt(alt_aal.array[app.slice], dev)
-
-            if np.ma.any(alt>=200.0):
-                alt_cropped = mask_outside_slices(alt, runs_of_ones(alt >= 200.0))
-            else:
-                # Altitude too low to calculate angle
+            app_slice = slices_int(app.slice)
+            if not np.ma.count(alt_aal.array[app_slice]):
                 continue
 
-            if np.min(alt_cropped) > 500:
-                # Can occur in an approach to a go-around
+            _, bands = slices_from_to(alt_aal.array[app_slice], 500, 200)
+            if not bands:
                 continue
 
-            alt_band = runs_of_ones(alt_cropped < 500)[0]
-            if alt_band.stop - alt_band.start <= 1:
-                # Cannot call coreg with data of length 1
-                continue
-
-            corr, slope, offset = coreg(
-                alt_aal.array[shift_slice(alt_band, app.slice.start)],
-                indep_var=dist.array[shift_slice(alt_band, app.slice.start)]
+            alt_band = shift_slice(bands[0], app_slice.start)
+            # Linear interpolation between slope_ldg and slope_aim between 500ft and 200ft
+            self.array[alt_band] = 1 / (500 - 200) * (
+                slope_ldg.array[alt_band] * (alt_aal.array[alt_band] - 200) +
+                slope_aim.array[alt_band] * (500 - alt_aal.array[alt_band])
             )
-            if not offset or not slope:
-                continue
-            dist_adj = -offset/slope
-            slope_to_ldg = alt_cropped / ut.convert(
-                dist.array[app.slice]-dist_adj, ut.NM, ut.FT
-            )
-            self.array[app.slice] = np.degrees(np.arctan(slope_to_ldg))
 
 
 '''

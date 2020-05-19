@@ -6775,71 +6775,36 @@ class TestApproachFlightPathAngle(unittest.TestCase):
         self.assertAlmostEqual(len(opts), 3)
         for opt in opts:
             self.assertIn('Altitude AAL', opt)
-            self.assertIn('SAT', opt)
             self.assertIn('Approach And Landing', opt)
-            self.assertTrue('Aiming Point Range' in opt or
-                            'Distance To Landing' in opt)
+            self.assertTrue('Slope Angle To Landing' in opt or
+                            'Slope Angle To Aiming Point' in opt)
 
-    def test_derive(self):
+    def test_only_slope_to_landing(self):
 
-        dist_land = P('Distance To Landing', np.ma.array([
-            9.568, 9.451, 9.334, 9.218, 9.102, 8.987, 8.871, 8.756,
-            8.641, 8.527, 8.413, 8.300, 8.187, 8.075, 7.964, 7.853,
-            7.741, 7.629, 7.518, 7.406, 7.295, 7.184, 7.072, 6.961,
-            6.850, 6.739, 6.629, 6.518, 6.408, 6.298, 6.189, 6.079,
-            5.969, 5.859, 5.748, 5.638, 5.528, 5.418, 5.308, 5.198,
-            5.088, 4.979, 4.868, 4.758, 4.648, 4.538, 4.429, 4.321,
-            4.214, 4.107, 4.000, 3.893, 3.788, 3.683, 3.580, 3.479,
-            3.379, 3.281, 3.184, 3.087, 2.989, 2.892, 2.795, 2.697,
-            2.599, 2.501, 2.402, 2.304, 2.206, 2.108, 2.010, 1.913,
-            1.815, 1.718, 1.620, 1.523, 1.426, 1.329, 1.232, 1.135,
-            1.039, 0.942, 0.846, 0.750, 0.654, 0.558, 0.462, 0.366,
-            0.270, 0.175, 0.079, 0.051, 0.146, 0.236, 0.317, 0.388,
-            0.448, 0.499, 0.541, 0.576, 0.605, 0.629, 0.648, 0.666,
-            0.684, 0.702, 0.718,
-        ]))
-
-        sat=P('SAT', np.ma.array([
-            12.490, 12.461, 12.487, 12.310, 12.238, 12.043, 12.279, 12.286,
-            12.311, 12.349, 12.249, 12.302, 12.430, 12.193, 12.475, 12.236,
-            11.982, 11.980, 12.249, 12.392, 12.169, 12.132, 12.133, 12.022,
-            12.122, 12.429, 12.460, 12.495, 12.547, 12.566, 12.542, 12.666,
-            12.780, 12.796, 13.035, 13.150, 13.302, 13.394, 13.591, 13.533,
-            13.564, 13.838, 13.783, 13.785, 14.025, 14.026, 14.229, 14.373,
-            14.366, 14.620, 14.679, 14.861, 15.069, 15.101, 15.310, 15.583,
-            15.670, 15.694, 15.742, 15.720, 15.729, 16.025, 16.116, 16.229,
-            16.475, 16.637, 16.626, 16.718, 16.790, 17.025, 16.956, 17.180,
-            17.452, 17.479, 17.414, 17.646, 17.714, 17.727, 17.816, 17.978,
-            18.179, 18.398, 18.513, 18.671, 18.745, 18.789, 18.895, 18.792,
-            19.087, 19.225, 19.281, 19.346, 19.629, 20.805, 21.091, 21.255,
-            21.410, 21.412, 21.266, 21.208, 21.286, 20.394, 205.047, 131.322,
-            57.646, 279.008, 205.395,
-        ], mask=[False]*101 + [True]*6))
-
-        alt_aal = P('Altitude AAL', np.ma.array([
-            3005.337, 2962.893, 2920.658, 2879.115, 2838.726, 2799.473, 2761.183, 2723.319,
-            2685.825, 2649.282, 2613.708, 2579.813, 2547.529, 2516.689, 2486.646, 2456.238,
-            2424.368, 2391.121, 2357.134, 2323.072, 2289.134, 2254.652, 2218.837, 2181.590,
-            2143.621, 2105.374, 2067.640, 2030.584, 1994.313, 1959.072, 1924.319, 1889.634,
-            1854.362, 1818.152, 1781.745, 1745.967, 1711.448, 1678.343, 1645.720, 1612.825,
-            1579.269, 1545.072, 1510.893, 1477.201, 1443.782, 1411.201, 1379.059, 1347.337,
-            1315.603, 1283.041, 1249.047, 1213.201, 1176.393, 1139.553, 1104.535, 1072.325,
-            1042.911, 1015.566, 988.621, 961.078, 932.362, 902.714, 872.510, 842.146,
-            811.325, 779.343, 745.201, 709.257, 672.887, 638.232, 606.584, 577.813,
-            550.837, 524.096, 496.380, 467.294, 436.479, 404.911, 373.275, 341.609,
-            310.127, 278.436, 246.899, 215.763, 184.930, 154.251, 124.029, 93.305,
-            64.424, 41.786, 15.034, 0., 0., 0., 0., 0. ,
-            0., 0., 0., 0., 0., 0., 0., 0. ,
-            0., 0., 0.,
-        ]))
+        alt_aal = P('Altitude AAL', np.ma.arange(1000, -10, -10))
+        slope_ldg = P('Slope Angle To Landing', np.ma.ones(101) * 2.9)
+        apps = buildsection('Approach And Landing', 1, 101)
 
         node = self.node_class()
-        node.derive(alt_aal, None, dist_land, sat, buildsection('Approach And Landing', 1, 106))
+        node.derive(alt_aal, slope_ldg, None, apps)
 
         self.assertEqual(node.name, "Approach Flight Path Angle")
-        self.assertEqual(len(node.array.compressed()), 83)
-        self.assertAlmostEqual(node.array.max(), 3.14, places=2)
-        self.assertAlmostEqual(node.array.min(), 3.02, places=2)
+        np.testing.assert_almost_equal(node.array, slope_ldg.array)
+
+    def test_both_slopes_available(self):
+
+        alt_aal = P('Altitude AAL', np.ma.arange(1000, -10, -10))
+        slope_ldg = P('Slope Angle To Landing', np.ma.ones(101) * 2.9)
+        slope_aim = P('Slope Angle To Aiming Point', np.ma.ones(101) * 3.1)
+        apps = buildsection('Approach And Landing', 0, 100)
+
+        node = self.node_class()
+        node.derive(alt_aal, slope_ldg, slope_aim, apps)
+
+        expected = np.ma.ones(101) * 2.9
+        expected[50:80] = np.linspace(2.9, 3.1, 30, endpoint=False)
+        expected[80:] = np.ma.masked
+        np.testing.assert_almost_equal(node.array, expected)
 
 
 class TestSpeedbrake(unittest.TestCase):
