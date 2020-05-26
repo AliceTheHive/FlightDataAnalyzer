@@ -1077,15 +1077,26 @@ class GearUpSelection(KeyTimeInstanceNode):
 
 class GearUpSelectionDuringGoAround(KeyTimeInstanceNode):
     '''
-    Instants at which gear up was selected while airborne including go-arounds.
+    Instants at which gear up was selected during go-arounds.
+
+    We consider the gear up selection between the start of the Go Around phase until
+    the following Top Of Climb. In case the Gear was not selected up during that phase,
+    the KTI will not be generated.
     '''
 
     def derive(self,
                gear_up_sel=M('Gear Up Selected'),
-               go_arounds=S('Go Around And Climbout')):
+               go_arounds=S('Go Around And Climbout'),
+               toc=KTI('Top Of Climb')):
 
-        self.create_ktis_on_state_change('Up', gear_up_sel.array,
-                                         change='entering', phase=go_arounds)
+        for go_around in go_arounds:
+            following_toc = toc.get_next(go_around.slice.start)
+            if following_toc:
+                phase = [slice(go_around.slice.start, following_toc.index)]
+            else:
+                phase = [go_around]
+            self.create_ktis_on_state_change('Up', gear_up_sel.array,
+                                             change='entering', phase=phase)
 
 
 ##############################################################################

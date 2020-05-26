@@ -1946,26 +1946,69 @@ class TestGearUpSelectionDuringGoAround(unittest.TestCase, NodeTest):
 
     def setUp(self):
         self.node_class = GearUpSelectionDuringGoAround
-        self.operational_combinations = [('Gear Up Selected', 'Go Around And Climbout')]
+        self.operational_combinations = [
+            ('Gear Up Selected', 'Go Around And Climbout', 'Top Of Climb')
+        ]
         self.gear_up_sel = M(
             name='Gear Up Selected',
             array=['Down'] * 3 + ['Up'] * 2 + ['Down'] * 2,
             values_mapping={0: 'Down', 1: 'Up'},
         )
+        self.toc = KTI('Top Of Climb', items=[KeyTimeInstance(index=10, name='Top Of Climb')])
 
     def test_normal_operation(self):
         go_arounds = buildsection('Go Around And Climbout', 6, 7)
-        node = GearUpSelectionDuringGoAround()
-        node.derive(self.gear_up_sel, go_arounds)
+        node = self.node_class()
+        node.derive(self.gear_up_sel, go_arounds, self.toc)
         self.assertEqual(node, [])
 
     def test_during_go_around(self):
         go_arounds = buildsection('Go Around And Climbout', 2, 4)
-        node = GearUpSelectionDuringGoAround()
-        node.derive(self.gear_up_sel, go_arounds)
+        node = self.node_class()
+        node.derive(self.gear_up_sel, go_arounds, self.toc)
         self.assertEqual(node, [
             KeyTimeInstance(index=2.5, name='Gear Up Selection During Go Around'),
         ])
+
+    def test_gear_up_after_go_around(self):
+        # We should monitor for Gear Up until Top Of Climb
+        go_arounds = buildsection('Go Around And Climbout', 2, 4)
+        gear_up_sel = M(
+            name='Gear Up Selected',
+            array=['Down'] * 8 + ['Up'] * 2,
+            values_mapping={0: 'Down', 1: 'Up'},
+        )
+        node = self.node_class()
+        node.derive(gear_up_sel, go_arounds, self.toc)
+        self.assertEqual(node, [
+            KeyTimeInstance(index=7.5, name='Gear Up Selection During Go Around'),
+        ])
+
+    def test_gear_up_after_go_around_no_toc(self):
+        go_arounds = buildsection('Go Around And Climbout', 2, 4)
+        gear_up_sel = M(
+            name='Gear Up Selected',
+            array=['Down'] * 8 + ['Up'] * 2,
+            values_mapping={0: 'Down', 1: 'Up'},
+        )
+        # TOC occurs before. None after.
+        toc = KTI('Top Of Climb', items=[KeyTimeInstance(index=1, name='Top Of Climb')])
+        node = self.node_class()
+        node.derive(gear_up_sel, go_arounds, toc)
+        self.assertEqual(node, [])
+
+    def test_no_gear_up_after_go_around(self):
+        go_arounds = buildsection('Go Around And Climbout', 2, 4)
+        gear_up_sel = M(
+            name='Gear Up Selected',
+            array=['Down'] * 10,
+            values_mapping={0: 'Down', 1: 'Up'},
+        )
+        # TOC occurs before. None after.
+        toc = KTI('Top Of Climb', items=[KeyTimeInstance(index=1, name='Top Of Climb')])
+        node = self.node_class()
+        node.derive(gear_up_sel, go_arounds, toc)
+        self.assertEqual(node, [])
 
 
 ##############################################################################
