@@ -7815,11 +7815,70 @@ class TestAltitudeAtGearUpSelectionDuringGoAround(unittest.TestCase, NodeTest):
 
     def setUp(self):
         self.node_class = AltitudeAtGearUpSelectionDuringGoAround
-        self.operational_combinations = [('Altitude AAL', 'Go Around And Climbout', 'Gear Up Selection During Go Around')]
+        self.operational_combinations = [
+            ('Altitude AAL', 'Go Around And Climbout',
+             'Top Of Climb', 'Gear Up Selection During Go Around')
+        ]
 
-    @unittest.skip('Test Not Implemented')
     def test_derive(self):
-        self.assertTrue(False, msg='Test not implemented.')
+        alt = P('Altitude AAL', array=np.ma.concatenate((
+            np.arange(800, 500, -100),
+            np.arange(500, 2000, 100),
+            np.ones(5) * 2000
+        )))
+        go_around = buildsection('Go Around And Climbout', 1, 14)
+        toc = KTI('Top Of Climb', items=[KeyTimeInstance(index=18)])
+        gear_up_sel=KTI('Gear Up Selection During Go Around', items=[
+            KeyTimeInstance(index=8)
+        ])
+        node = self.node_class()
+        node.derive(alt, go_around, toc, gear_up_sel)
+        self.assertEqual(len(node), 1)
+        self.assertEqual(node[0].index, gear_up_sel[0].index)
+        self.assertEqual(node[0].value, 500)
+
+    def test_no_gear_up(self):
+        alt = P('Altitude AAL', array=np.ma.concatenate((
+            np.arange(800, 500, -100),
+            np.arange(500, 2000, 100),
+            np.ones(5) * 2000
+        )))
+        go_around = buildsection('Go Around And Climbout', 1, 14)
+        toc = KTI('Top Of Climb', items=[KeyTimeInstance(index=18)])
+        gear_up_sel=KTI('Gear Up Selection During Go Around', items=[])
+        node = self.node_class()
+        node.derive(alt, go_around, toc, gear_up_sel)
+        self.assertEqual(len(node), 0)
+
+    def test_no_toc_and_gear_up_occured_afterwards(self):
+        alt = P('Altitude AAL', array=np.ma.concatenate((
+            np.arange(800, 500, -100),
+            np.arange(500, 2000, 100),
+            np.ones(5) * 2000
+        )))
+        go_around = buildsection('Go Around And Climbout', 1, 14)
+        toc = KTI('Top Of Climb', items=[])
+        gear_up_sel=KTI('Gear Up Selection During Go Around', items=[
+            KeyTimeInstance(index=15)
+        ])
+        node = self.node_class()
+        node.derive(alt, go_around, toc, gear_up_sel)
+        self.assertEqual(len(node), 0)
+
+    def test_gear_up_before_min_alt(self):
+        alt = P('Altitude AAL', array=np.ma.concatenate((
+            np.arange(800, 500, -100),
+            np.arange(500, 2000, 100),
+            np.ones(5) * 2000
+        )))
+        go_around = buildsection('Go Around And Climbout', 1, 14)
+        toc = KTI('Top Of Climb', items=[KeyTimeInstance(index=18)])
+        gear_up_sel=KTI('Gear Up Selection During Go Around', items=[
+            KeyTimeInstance(index=1.5)
+        ])
+        node = self.node_class()
+        node.derive(alt, go_around, toc, gear_up_sel)
+        self.assertEqual(len(node), 0)
 
 
 class TestAltitudeAtGearDownSelectionWithFlapUp(unittest.TestCase, NodeTest):

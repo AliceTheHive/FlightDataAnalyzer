@@ -6282,9 +6282,9 @@ class AltitudeAtFirstGearUpSelection(KeyPointValueNode):
 
 class AltitudeAtGearUpSelectionDuringGoAround(KeyPointValueNode):
     '''
-    Altitude AAL at which gear up was selected from the point of minimum
-    altitude in the go-around. If gear up was selected before that,
-    value will be zero.
+    Relative Altitude AAL at which gear up was selected from the point of minimum
+    altitude in the go-around. If gear up was selected before that, no KPV will be
+    generated.
     '''
 
     units = ut.FT
@@ -6292,22 +6292,25 @@ class AltitudeAtGearUpSelectionDuringGoAround(KeyPointValueNode):
     def derive(self,
                alt_aal=P('Altitude AAL'),
                go_arounds=S('Go Around And Climbout'),
+               toc=KTI('Top Of Climb'),
                gear_up_sel=KTI('Gear Up Selection During Go Around')):
 
         for go_around in go_arounds:
             # Find the index and height at this go-around minimum:
             pit_index, pit_value = min_value(alt_aal.array, go_around.slice)
-            for gear_up in gear_up_sel.get(within_slice=go_around.slice):
-                if gear_up.index > pit_index:
-                    # Use height between go around minimum and gear up:
-                    gear_up_ht = alt_aal.array[int(gear_up.index)] - pit_value
-                    self.create_kpv(gear_up.index, gear_up_ht)
+            following_toc = toc.get_next(go_around.slice.start)
 
-                # The else condition below led to creation of a zero KPV in
-                # cases where the gear was not moved, so has been deleted.
-                #else:
-                    ## Use zero if gear up selected before minimum height:
-                    #gear_up_ht = 0.0
+            if following_toc:
+                slice_ = slice(pit_index, following_toc.index)
+            else:
+                slice_ = slice(pit_index, go_around.slice.stop)
+
+            gear_up = gear_up_sel.get_next(index=pit_index, within_slice=slice_)
+            if gear_up:
+                # Use height between go around minimum and gear up:
+                alt_gear_up = value_at_index(alt_aal.array, gear_up.index)
+                gear_up_ht = alt_gear_up - pit_value
+                self.create_kpv(gear_up.index, gear_up_ht)
 
 
 class AltitudeWithGearDownMax(KeyPointValueNode):
