@@ -1245,27 +1245,32 @@ class TestDescentLowClimb(unittest.TestCase):
     def test_descent_low_climb_basic(self):
         # Wave is 5000ft to 0 ft and back up, with climb of 5000ft.
         testwave = np.ma.cos(np.arange(0, 6.3, 0.1)) * (2500) + 2500
-        dsc = testwave - testwave[0]
-        dsc[32:] = 0.0
-        clb = testwave - min(testwave)
-        clb[:31] = 0.0
         alt_aal = Parameter('Altitude AAL For Flight Phases', testwave)
-        #descend = Parameter('Descend For Flight Phases', np.ma.array(dsc))
-        #climb = Parameter('Climb For Flight Phases', np.ma.array(clb))
         dlc = DescentLowClimb()
         dlc.derive(alt_aal)
         self.assertEqual(len(dlc), 1)
         self.assertAlmostEqual(dlc[0].slice.start, 14, places=0)
-        self.assertAlmostEqual(dlc[0].slice.stop, 38, places=0)
+        self.assertAlmostEqual(dlc[0].slice.stop, 49, places=0)
 
     def test_descent_low_climb_inadequate_climb(self):
-        testwave = np.ma.cos(np.arange(0, 6.3, 0.1)) * (240) + 2500 # 480ft climb
-        clb = testwave - min(testwave)
-        clb[:31] = 0.0
+        testwave = np.concatenate((
+            np.ma.arange(3000, 2500, -100),
+            np.ma.cos(np.arange(0, 6.3, 0.1)) * (240) + 2500, # 480ft climb
+        ))
         alt_aal = Parameter('Altitude AAL For Flight Phases', testwave)
         dlc = DescentLowClimb()
         dlc.derive(alt_aal)
         self.assertEqual(len(dlc), 0)
+
+    def test_descent_low_climb_below_3000ft(self):
+        # Wave is 4500ft to 2500 ft and back up, with climb of 2000ft.
+        testwave = np.ma.cos(np.arange(0, 6.3, 0.1)) * (1000) + 3500
+        alt_aal = Parameter('Altitude AAL For Flight Phases', testwave)
+        dlc = DescentLowClimb()
+        dlc.derive(alt_aal)
+        self.assertEqual(len(dlc), 1)
+        self.assertAlmostEqual(dlc[0].slice.start, 21, places=0)
+        self.assertAlmostEqual(dlc[0].slice.stop, 42, places=0)
 
 
 class TestDescending(unittest.TestCase):
