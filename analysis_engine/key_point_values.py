@@ -13904,6 +13904,8 @@ class GearDownSelectedDurationAfterGoAround(KeyPointValueNode):
 
         for go_around_section in go_around_sections:
             go_around = go_arounds.get_first(within_slice=go_around_section.slice)
+            if not go_around:
+                continue
             following_toc = toc.get_next(go_around.index)
 
             if following_toc:

@@ -16685,6 +16685,17 @@ class TestGearDownSelectedDurationAfterGoAround:
         assert node[0].index == go_arounds[0].index * 2
         assert node[0].value == 20
 
+    def test_missing_go_around(self):
+        go_around_sections = buildsection('Go Around And Climbout', 0, 30)
+        go_arounds = KTI('Go Around', items=[])
+        gear_up_sel = KTI('Gear Up Selection During Go Around', items=[KeyTimeInstance(25)])
+        toc = KTI('Top Of Climb', items=[KeyTimeInstance(50)])
+
+        node = GearDownSelectedDurationAfterGoAround()
+        node.derive(go_around_sections, go_arounds, gear_up_sel, toc)
+
+        assert len(node) == 0
+
 
 ##############################################################################
 
