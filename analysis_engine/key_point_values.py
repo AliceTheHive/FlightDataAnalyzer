@@ -13883,6 +13883,44 @@ class GearRetractionDuration(KeyPointValueNode):
         self.create_kpvs_from_slice_durations(runs_of_ones(gear_retracting.array=='Retracting'), self.hz)
 
 
+class GearDownSelectedDurationAfterGoAround(KeyPointValueNode):
+    '''
+    Indicate how long it took to raise the gear after go-around.
+
+    In case the gear was not selected up before reaching the following Top Of Climb,
+    the duration will be equal to the time between the lowest altitude during the
+    Go Around and the following Top Of Climb. In the unlikely case that there is no
+    Top Of Climb following the go around and that the gear was not retracted, the
+    duration will measure the time between the lowest altitude during the Go Around and
+    the end of the Go Around And Climbout phase.
+    '''
+    units = ut.SECOND
+
+    def derive(self,
+               go_around_sections=S('Go Around And Climbout'),
+               go_arounds=KTI('Go Around'),
+               gear_up_sel=KTI('Gear Up Selection During Go Around'),
+               toc=KTI('Top Of Climb')):
+
+        for go_around_section in go_around_sections:
+            go_around = go_arounds.get_first(within_slice=go_around_section.slice)
+            following_toc = toc.get_next(go_around.index)
+
+            if following_toc:
+                slice_ = slice(go_around.index, following_toc.index)
+            else:
+                slice_ = slice(go_around.index, go_around_section.slice.stop)
+
+            gear_up = gear_up_sel.get_next(index=slice_.start, within_slice=slice_)
+
+            if gear_up:
+                duration = (gear_up.index - go_around.index) / go_around_sections.hz
+            else:
+                duration = slice_duration(slice_, go_around_sections.hz)
+
+            self.create_kpv(go_around.index, duration)
+
+
 ##############################################################################
 # Flap
 

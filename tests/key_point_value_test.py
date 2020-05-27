@@ -444,6 +444,7 @@ from analysis_engine.key_point_values import (
     FuelQtyWingDifference787Max,
     FuelQtyWingDifferenceOverThresholdMax,
     GearboxChipDetectorWarningDuration,
+    GearDownSelectedDurationAfterGoAround,
     GearDownToLandingFlapConfigurationDuration,
     GearExtensionDuration,
     GearRetractionDuration,
@@ -16614,6 +16615,75 @@ class TestGearRetractionDuration(unittest.TestCase):
         self.assertEqual(node[0].value, 5)
         self.assertEqual(node[1].index, 12)
         self.assertEqual(node[1].value, 4)
+
+
+class TestGearDownSelectedDurationAfterGoAround:
+    def test_derive(self):
+        go_around_sections = buildsection('Go Around And Climbout', 0, 30)
+        go_arounds = KTI('Go Around', items=[KeyTimeInstance(5)])
+        gear_up_sel = KTI('Gear Up Selection During Go Around', items=[KeyTimeInstance(25)])
+        toc = KTI('Top Of Climb', items=[KeyTimeInstance(50)])
+
+        node = GearDownSelectedDurationAfterGoAround()
+        node.derive(go_around_sections, go_arounds, gear_up_sel, toc)
+
+        assert len(node) == 1
+        assert node[0].index == go_arounds[0].index
+        assert node[0].value == 20
+
+    def test_no_gear_up(self):
+        go_around_sections = buildsection('Go Around And Climbout', 0, 30)
+        go_arounds = KTI('Go Around', items=[KeyTimeInstance(5)])
+        gear_up_sel = KTI('Gear Up Selection During Go Around', items=[])
+        toc = KTI('Top Of Climb', items=[KeyTimeInstance(50)])
+
+        node = GearDownSelectedDurationAfterGoAround()
+        node.derive(go_around_sections, go_arounds, gear_up_sel, toc)
+
+        assert len(node) == 1
+        assert node[0].index == go_arounds[0].index
+        assert node[0].value == 45
+
+    def test_gear_up_after_go_around_before_toc(self):
+        go_around_sections = buildsection('Go Around And Climbout', 0, 30)
+        go_arounds = KTI('Go Around', items=[KeyTimeInstance(5)])
+        gear_up_sel = KTI('Gear Up Selection During Go Around', items=[KeyTimeInstance(45)])
+        toc = KTI('Top Of Climb', items=[KeyTimeInstance(50)])
+
+        node = GearDownSelectedDurationAfterGoAround()
+        node.derive(go_around_sections, go_arounds, gear_up_sel, toc)
+
+        assert len(node) == 1
+        assert node[0].index == go_arounds[0].index
+        assert node[0].value == 40
+
+    def test_missing_toc(self):
+        go_around_sections = buildsection('Go Around And Climbout', 0, 30)
+        go_arounds = KTI('Go Around', items=[KeyTimeInstance(5)])
+        gear_up_sel = KTI('Gear Up Selection During Go Around', items=[KeyTimeInstance(25)])
+        toc = KTI('Top Of Climb', items=[])
+
+        node = GearDownSelectedDurationAfterGoAround()
+        node.derive(go_around_sections, go_arounds, gear_up_sel, toc)
+
+        assert len(node) == 1
+        assert node[0].index == go_arounds[0].index
+        assert node[0].value == 20
+
+    def test_frequency(self):
+        go_around_sections = buildsection('Go Around And Climbout', 0, 60)
+        go_around_sections.frequency = 2
+        go_arounds = KTI('Go Around', items=[KeyTimeInstance(5)])
+        gear_up_sel = KTI('Gear Up Selection During Go Around', items=[KeyTimeInstance(25)])
+        toc = KTI('Top Of Climb', items=[KeyTimeInstance(50)])
+
+        node = GearDownSelectedDurationAfterGoAround()
+        node.get_derived((go_around_sections, go_arounds, gear_up_sel, toc))
+
+        assert len(node) == 1
+        assert node.frequency == 2
+        assert node[0].index == go_arounds[0].index * 2
+        assert node[0].value == 20
 
 
 ##############################################################################
