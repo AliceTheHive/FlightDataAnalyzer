@@ -7,6 +7,7 @@ import math
 
 from builtins import zip
 from mock import Mock, call, patch
+import pytest
 
 from flightdatautilities import units as ut
 from flightdatautilities.aircrafttables.interfaces import VelocitySpeed
@@ -162,6 +163,7 @@ from analysis_engine.key_point_values import (
     AirspeedRelative20FtToTouchdownMin,
     AirspeedRelative500To20FtMax,
     AirspeedRelative500To20FtMin,
+    AirspeedRelativeAt50FtBeforeLanding,
     AirspeedRelativeAtTouchdown,
     AirspeedRelativeFor3Sec1000To500FtMax,
     AirspeedRelativeFor3Sec1000To500FtMin,
@@ -4784,6 +4786,66 @@ class TestAirspeedRelativeFor3Sec20FtToTouchdownMin(unittest.TestCase, NodeTest)
     @unittest.skip('Test Not Implemented')
     def test_derive(self):
         self.assertTrue(False, msg='Test Not Implemented')
+
+
+class TestAirspeedRelativeAt50FtBeforeLanding:
+    def test_derive(self):
+        spd_rel = P('Airspeed Relative', array=np.ma.arange(10, 0, -0.1))
+        apps = App(
+            'Approach Information',
+            items = [ApproachItem('LANDING', slice(10, 100))]
+        )
+        alt_descending = KTI(
+            'Altitude When Descending',
+            items = [KeyTimeInstance(50, '50 Ft Descending')]
+        )
+        node = AirspeedRelativeAt50FtBeforeLanding()
+        node.derive(spd_rel, apps, alt_descending)
+
+        assert len(node) == 1
+        assert node[0].index == 50
+        assert node[0].value == pytest.approx(5.0)
+
+    def test_ignores_go_around(self):
+        spd_rel = P('Airspeed Relative', array=np.tile(np.ma.arange(10, 0, -0.1), 2))
+        apps = App(
+            'Approach Information',
+            items = [
+                ApproachItem('GO_AROUND', slice(10, 100)),
+                ApproachItem('LANDING', slice(110, 200)),
+            ],
+        )
+        alt_descending = KTI(
+            'Altitude When Descending',
+            items = [
+                KeyTimeInstance(50, '50 Ft Descending'),
+                KeyTimeInstance(150, '50 Ft Descending')
+            ]
+        )
+        node = AirspeedRelativeAt50FtBeforeLanding()
+        node.derive(spd_rel, apps, alt_descending)
+
+        assert len(node) == 1
+        assert node[0].index == 150
+        assert node[0].value == pytest.approx(5.0)
+
+        assert node[0].value == pytest.approx(5.0)
+
+    def test_ignores_masked_aspd_rel(self):
+        spd_rel = P('Airspeed Relative', array=np.ma.arange(10, 0, -0.1))
+        spd_rel.array[45:55] = np.ma.masked
+        apps = App(
+            'Approach Information',
+            items = [ApproachItem('LANDING', slice(10, 100))]
+        )
+        alt_descending = KTI(
+            'Altitude When Descending',
+            items = [KeyTimeInstance(50, '50 Ft Descending')]
+        )
+        node = AirspeedRelativeAt50FtBeforeLanding()
+        node.derive(spd_rel, apps, alt_descending)
+
+        assert len(node) == 0
 
 
 ##############################################################################

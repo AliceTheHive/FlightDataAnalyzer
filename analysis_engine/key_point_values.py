@@ -3285,6 +3285,33 @@ class AirspeedRelativeFor3Sec20FtToTouchdownMin(KeyPointValueNode):
         )
 
 
+class AirspeedRelativeAt50FtBeforeLanding(KeyPointValueNode):
+    '''
+    Airspeed relative at 50ft AAL before landing.
+
+    This excludes go arounds.
+    '''
+
+    units = ut.KT
+
+    @classmethod
+    def can_operate(cls, available):
+        return all_deps(cls, available)
+
+
+    def derive(self,
+               spd_rel=P('Airspeed Relative'),
+               apps=App('Approach Information'),
+               alt_descending=KTI('Altitude When Descending')):
+
+        ldgs = [app.slice for app in apps if app.type != 'GO_AROUND']
+        alt_50ft = alt_descending.get(name='50 Ft Descending', within_slices=ldgs)
+        if not alt_50ft:
+            return
+
+        self.create_kpvs_at_ktis(spd_rel.array, alt_50ft)
+
+
 ########################################
 # Airspeed Minus VLS
 
