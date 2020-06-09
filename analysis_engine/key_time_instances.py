@@ -1,6 +1,7 @@
 from __future__ import print_function
 
 import numpy as np
+from scipy.signal import find_peaks
 import six
 
 from math import ceil, floor
@@ -1548,7 +1549,6 @@ class Touchdown(KeyTimeInstanceNode):
             # initialise within loop as we dont want to carry indexes into the next landing
             index_gog = index_wheel_touch = index_brake = index_decel = None
             index_dax = index_z = index_az = index_daz = None
-            peak_ax = peak_az = delta = 0.0
 
             # We have to have an altitude signal, so this forms an initial
             # estimate of the touchdown point.
@@ -1577,13 +1577,19 @@ class Touchdown(KeyTimeInstanceNode):
                 if flap_change_idx:
                     index_gog = int(flap_change_idx) + land.slice.start
 
-            index_ref = min([x for x in (index_alt, index_gog) if x is not None])
+            index_alt_gog = sorted(x for x in (index_alt, index_gog) if x is not None)
+            if not index_alt_gog:
+                continue
+            index_ref = index_alt_gog[0]
 
             # With an estimate from the height and perhaps gear switch, set
             # up a period to scan across for accelerometer based
             # indications...
-            period_end = int(ceil(index_ref + dt_post * hz))
             period_start = max(floor(index_ref - dt_pre * hz), 0)
+            if len(index_alt_gog) > 1:
+                period_end = int(ceil(index_alt_gog[1] + dt_post * hz))
+            else:
+                period_end = int(ceil(index_ref + dt_post * hz))
             if alt_rad:
                 # only look for 5ft altitude if Radio Altitude is recorded,
                 # due to Altitude STD accuracy and ground effect.
@@ -1593,32 +1599,16 @@ class Touchdown(KeyTimeInstanceNode):
             period = slice(period_start, period_end)
 
             if acc_long:
-                drag = np.ma.copy(acc_long.array[slices_int(period)])
-                drag = np.ma.where(drag > 0.0, 0.0, drag)
-
-                # Look for inital wheel contact where there is a sudden spike in Ax.
-
-                touch = np_ma_masked_zeros_like(drag)
-                for i in range(2, len(touch)-2):
-                    # Looking for a downward pointing "V" shape over half the
-                    # Az sample rate. This is a common feature at the point
-                    # of wheel touch.
-                    touch[i-2] = max(0.0,drag[i-2]-drag[i]) * max(0.0,drag[i+2]-drag[i])
-                peak_ax = np.max(touch)
-                # Only use this if the value was significant.
-                if peak_ax>0.0005:
-                    ix_ax2 = np.argmax(touch)
-                    ix_ax = ix_ax2
-                    # See if this was the second of a pair, with the first a little smaller.
-                    if np.ma.count(touch[:ix_ax2]) > 0:
-                        # I have some valid data to scan
-                        ix_ax1 = np.argmax(touch[:ix_ax2])
-                        if touch[ix_ax1] > peak_ax*0.2:
-                            # This earlier touch was a better guess.
-                            peak_ax = touch[ix_ax1]
-                            ix_ax = ix_ax1
-
-                    index_wheel_touch = ix_ax+1+period.start
+                drag = acc_long.array[slices_int(period)]
+                 # Look for inital wheel contact where there is a sudden spike in Ax.
+                 # Looking for a downward pointing "V" shape over half the
+                 # Az sample rate. This is a common feature at the point
+                 # of wheel touch.
+                peaks_idx, peaks_props = find_peaks(
+                    -drag, width=(None, 4.5), rel_height=0.5, prominence=0.015
+                )
+                if peaks_idx.size:
+                    index_wheel_touch = peaks_idx[0] + period.start
 
                 # Look for the onset of braking
                 index_brake = np.ma.argmin(rate_of_change_array(drag, hz))
@@ -1626,38 +1616,18 @@ class Touchdown(KeyTimeInstanceNode):
                     index_brake += period.start
 
                 # Look for substantial deceleration
-
                 index_decel = index_at_value(drag, -0.1)
                 if index_decel:
                     index_decel += period.start
 
             if acc_norm:
                 lift = acc_norm.array[slices_int(period)]
-                mean = np.mean(lift)
-                lift = np.ma.masked_less(lift-mean, 0.0)
-                bump = np_ma_masked_zeros_like(lift)
-
+                peaks_idx, peaks_props = find_peaks(
+                    lift, width=(None, 6), rel_height=0.5, prominence=0.1
+                )
                 # A firm touchdown is typified by at least two large Az samples.
-                for i in range(1, len(bump)-1):
-                    bump[i-1]=lift[i]*lift[i+1]
-                peak_az = np.max(bump)
-                if peak_az > 0.1:
-                    index_az = np.argmax(bump)+period.start
-                else:
-                    # In the absence of a clear touchdown, contact can be
-                    # indicated by an increase in g of more than 0.075
-                    for i in range(0, len(lift)-1):
-                        if lift[i] and lift[i+1]:
-                            delta=lift[i+1]-lift[i]
-                            if delta > 0.075:
-                                index_daz = i+1+period.start
-                                break
-
-            # Pick the first of the two normal accelerometer measures to
-            # avoid triggering a touchdown from a single faulty sensor:
-            index_z_list = [x for x in (index_az, index_daz) if x is not None]
-            if index_z_list:
-                index_z = min(index_z_list)
+                if len(peaks_idx) > 1:
+                    index_az = peaks_idx[0] + period.start
 
             # ...then collect the valid estimates of the touchdown point...
             index_list = sorted_valid_list([index_alt,
@@ -1666,7 +1636,7 @@ class Touchdown(KeyTimeInstanceNode):
                                             index_brake,
                                             index_decel,
                                             index_dax,
-                                            index_z])
+                                            index_az])
 
             # ...to find the best estimate...
             # If we have lots of measures, bias towards the earlier ones.
@@ -1684,7 +1654,6 @@ class Touchdown(KeyTimeInstanceNode):
                 if index_gog:
                     index_tdn = min(index_tdn, index_gog)
 
-            # self.create_kti(index_tdn)
             self.info("Touchdown: Selected index: %s @ %sHz. Complete list (index_alt: %s, "\
                       "index_gog: %s, index_wheel_touch: %s,  index_brake: %s, "\
                       "index_decel: %s, index_dax: %s, index_z: %s)",
