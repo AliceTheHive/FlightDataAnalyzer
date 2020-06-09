@@ -1784,6 +1784,87 @@ class TestPalmaDeMallorca(unittest.TestCase):
         self.assertEqual(approaches[0].runway_change, True)
 
 
+class TestVaranusIslandHelicopter(unittest.TestCase):
+    '''
+    abo:011c26985a63
+    '''
+
+    # Helicopters heading does not necessarily align with airport runways on approach.
+    @patch('analysis_engine.approaches.api')
+    def test_helicopter_hdg_differ_from_runway_hdg(self, api):
+
+        get_handler = Mock()
+        get_handler.get_nearest_airport.return_value = [airports['varanus island']]
+        api.get_handler.return_value = get_handler
+
+        def fetch(par_name):
+            try:
+                return load(root + par_name + '.nod')
+            except:
+                return None
+        root = os.path.join(approaches_path, 'Landing_heli_abo_011c26985a63_')
+
+        approaches = ApproachInformation()
+        approaches.derive(
+            fetch('Altitude AAL'),
+            fetch('Altitude AGL'),
+            A('Aircraft Type', 'helicopter'),
+            S(name='Approach And Landing', frequency=2.0,
+              items=[
+                  Section(
+                      name='Approach And Landing', slice=slice(4682, 4898),
+                      start_edge=4682, stop_edge=4898
+                  )
+              ]
+            ),
+            fetch('Heading Continuous'),
+            fetch('Latitude Prepared'),
+            fetch('Longitude Prepared'),
+            fetch('ILS Localizer'),
+            fetch('ILS Glideslope'),
+            fetch('ILS Frequency'),
+            A(name='AFR Landing Airport', value=None),
+            A(name='AFR Landing Runway', value=None) ,
+            KPV('Latitude At Touchdown', items=[
+                KeyPointValue(index=4694.0, value=-20.659897159785032, name='Latitude At Touchdown'),
+                KeyPointValue(index=10636.0, value=-20.71006896905601, name='Latitude At Touchdown'),
+            ]),
+            KPV('Longitude At Touchdown', items=[
+                KeyPointValue(index=4752.0, value=115.58472611010075, name='Longitude At Touchdown'),
+                KeyPointValue(index=10802.0, value=116.76602829247713, name='Longitude At Touchdown')
+            ]),
+            A('Precise Positioning', True),
+            S(name='Fast',
+              frequency=2.0,
+              items=[Section(name='Fast',
+                             slice=slice(93, 11373, None),
+                             start_edge=92.875,
+                             stop_edge=11372.875)],
+            ),
+
+            fetch('Airspeed'),
+            fetch('Groundspeed'),
+            fetch('Altitude ADH'),
+            fetch('Vertical Speed'),
+            fetch('Roll'),
+            fetch('Heading'),
+            fetch('Distance To Landing'),
+            KTI('Touchdown', items=[
+                KeyTimeInstance(index=4877.258035827243, name='Touchdown'),
+                KeyTimeInstance(index=10815.393951826029, name='Touchdown'),
+            ]),
+            S(name='Offshore', frequency=2.0, items=[]),
+            S(name='Takeoff', frequency=2.0, items=[
+                Section(name='Takeoff', slice=slice(1081, 1101, None), start_edge=1080.3028244307038, stop_edge=1100.3028244307038),
+                Section(name='Takeoff', slice=slice(6611, 6631, None), start_edge=6610.377288585346, stop_edge=6630.377288585346)
+            ]),
+        )
+
+        self.assertEqual(approaches[0].type, 'LANDING')
+        self.assertEqual(approaches[0].airport['name'], 'Varanus Island')
+        self.assertIsNone(approaches[0].landing_runway)
+        self.assertIsNone(approaches[0].approach_runway)
+
 
 if __name__ == '__main__':
     unittest.main()

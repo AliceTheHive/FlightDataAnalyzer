@@ -182,13 +182,16 @@ class ApproachInformation(ApproachNode):
                         % (land_afr_apt.value['code'], lowest_lat, lowest_lon)
                     raise AFRMissmatchError(self.name, msg)
                 elif not land_afr_apt and precise:
-                    # filter by runway coordinates
-                    filtered = [x for x in airport_info.values() if x['min_rwy_start_dist'] is not None]
-                    if filtered:
-                        match = min(filtered, key=itemgetter('min_rwy_start_dist'))
+                    if ac_type != helicopter:
+                        # filter by runway coordinates
+                        filtered = [x for x in airport_info.values() if x['min_rwy_start_dist'] is not None]
+                        if filtered:
+                            match = min(filtered, key=itemgetter('min_rwy_start_dist'))
+                    else:
+                        # Helicopter can arrive with any heading. Filter by airport distance.
+                        match = min(airport_info.values(), key=itemgetter('distance'), default=None)
                 else:
                     # filter by runway heading
-                    airport = None
                     potential_airports = [x for x in airport_info.values() if x['heading_match']]
                     if appr_ils_freq:
                         # filter by ils frequency
