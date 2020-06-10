@@ -1636,13 +1636,18 @@ class Touchdown(KeyTimeInstanceNode):
                 if peaks_idx.size:
                     index_wheel_touch = peaks_idx[0] + period.start
 
-                # Look for the onset of braking
-                index_brake = np.ma.argmin(rate_of_change_array(drag, hz))
+                # Look for the onset of braking, ie. the largest change in drag
+                decel_roc = rate_of_change_array(drag, hz)
+                index_brake = np.ma.argmin(decel_roc)
                 if index_brake:
                     index_brake += period.start
 
-                # Look for substantial deceleration
-                index_decel = index_at_value(drag, -0.1)
+                # Look for start of maximum deceleration
+                decel_idx = np.ma.argmin(drag)
+                # Where did it start?
+                index_decel = index_at_value(
+                    decel_roc, 0.0, slice(decel_idx-1, 0, -1), endpoint='first_closing'
+                )
                 if index_decel:
                     index_decel += period.start
 
