@@ -1621,12 +1621,17 @@ class Touchdown(KeyTimeInstanceNode):
 
             if acc_long:
                 drag = acc_long.array[slices_int(period)]
-                 # Look for inital wheel contact where there is a sudden spike in Ax.
-                 # Looking for a downward pointing "V" shape over half the
-                 # Az sample rate. This is a common feature at the point
-                 # of wheel touch.
+                # Look for inital wheel contact where there is a sudden spike in Ax.
+                # Looking for a downward pointing "V" shape over half the Az sample rate.
+                # This is a common feature at the point of wheel touch.
+                # Look at scipy.signal.find_peaks documentation for a full description
+                # of peak width, relative height and prominence.
+                # https://docs.scipy.org/doc/scipy/reference/generated/scipy.signal.find_peaks.html
+                # The peak width will be wider with greater sample rate. But limit it for
+                # high sample rates nevertheless. We want to capture narrow peaks.
+                peak_width = min(1.1 * self.hz, 4.5)
                 peaks_idx, peaks_props = find_peaks(
-                    -drag, width=(None, 4.5), rel_height=0.5, prominence=0.015
+                    -drag, width=(None, peak_width), rel_height=0.5, prominence=0.015
                 )
                 if peaks_idx.size:
                     index_wheel_touch = peaks_idx[0] + period.start
@@ -1643,8 +1648,9 @@ class Touchdown(KeyTimeInstanceNode):
 
             if acc_norm:
                 lift = acc_norm.array[slices_int(period)]
+                peak_width = min(1.5 * self.hz, 6)
                 peaks_idx, peaks_props = find_peaks(
-                    lift, width=(None, 6), rel_height=0.5, prominence=0.1
+                    lift, width=(None, peak_width), rel_height=0.5, prominence=0.1
                 )
                 # A firm touchdown is typified by at least two large Az samples.
                 if len(peaks_idx) > 1:
