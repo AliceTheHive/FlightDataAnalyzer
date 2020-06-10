@@ -1580,22 +1580,43 @@ class Touchdown(KeyTimeInstanceNode):
             index_alt_gog = sorted(x for x in (index_alt, index_gog) if x is not None)
             if not index_alt_gog:
                 continue
+            # Index of first of either Altitude AAL 0 or Gear On Ground
             index_ref = index_alt_gog[0]
 
             # With an estimate from the height and perhaps gear switch, set
-            # up a period to scan across for accelerometer based
-            # indications...
-            period_start = max(floor(index_ref - dt_pre * hz), 0)
-            if len(index_alt_gog) > 1:
-                period_end = int(ceil(index_alt_gog[1] + dt_post * hz))
-            else:
-                period_end = int(ceil(index_ref + dt_post * hz))
+            # up a period to scan across for accelerometer based indications.
+            # The start is either 5 ft radio alt, 30 ft pressure altitude or 10 sec
+            # before Altitude AAL shows 0, whichever is available in that order.
+            # The end is the last of Alitude AAL at 0 or Gear on Ground plus 3 sec. If
+            # Gear On Ground is not available, we will extend the end to Altitude AAL
+            # plus 10 sec.
             if alt_rad:
                 # only look for 5ft altitude if Radio Altitude is recorded,
                 # due to Altitude STD accuracy and ground effect.
-                alt_rad_start = index_at_value(alt.array, 5, _slice=slice(period_end, period_start, -1))
-                if alt_rad_start is not None:
-                    period_start = alt_rad_start
+                alt_start = index_at_value(
+                    alt.array, 5, _slice=slice(index_alt, land.slice.start, -1)
+                )
+            else:
+                # look for 30ft pressure altitude to make sure we don't miss the peak
+                # acceleration normal at touchdown
+                alt_start = index_at_value(
+                    alt.array, 30, _slice=slice(index_alt, land.slice.start, -1)
+                )
+
+            if alt_start is not None:
+                period_start = alt_start
+            else:
+                # defaults to 10 seconds before the reference point
+                period_start = max(floor(index_ref - dt_pre * hz), 0)
+
+            if len(index_alt_gog) > 1:
+                period_end = int(ceil(index_alt_gog[1] + dt_post * hz))
+            else:
+                # Without gear on ground, we want to extend the scanning period
+                # to the right as we want to capture the peak deceleration when breaking.
+                # So we use dt_pre also for the end section which is 10 seconds.
+                period_end = int(ceil(index_ref + dt_pre * hz))
+
             period = slice(period_start, period_end)
 
             if acc_long:
