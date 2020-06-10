@@ -1659,7 +1659,14 @@ class Touchdown(KeyTimeInstanceNode):
                 )
                 # A firm touchdown is typified by at least two large Az samples.
                 if len(peaks_idx) > 1:
-                    index_az = peaks_idx[0] + period.start
+                    if not alt_rad:
+                        # The scan period is large so only use the most prominent peak
+                        most_prominent = np.argmax(peaks_props['prominences'])
+                        index_az = peaks_idx[most_prominent] + period.start
+                    else:
+                        # We're more confident that the first peak detected will be the
+                        # touchdown point in this case.
+                        index_az = peaks_idx[0] + period.start
 
             # ...then collect the valid estimates of the touchdown point...
             index_list = sorted_valid_list([index_alt,
@@ -1672,7 +1679,6 @@ class Touchdown(KeyTimeInstanceNode):
 
             # ...to find the best estimate...
             # If we have lots of measures, bias towards the earlier ones.
-            #index_tdn = np.median(index_list[:4])
             if len(index_list) == 0:
                 # No clue where the aircraft landed. Give up.
                 return
@@ -1685,6 +1691,11 @@ class Touchdown(KeyTimeInstanceNode):
                 # ensure detected touchdown point is not after Gear on Ground indicates on ground
                 if index_gog:
                     index_tdn = min(index_tdn, index_gog)
+                # without radio altitude, we've selected the most prominent normal accel
+                # ensure touchdown point is not after this.
+                if alt_rad is None and  index_az:
+                    index_tdn = min(index_tdn, index_az)
+
 
             self.info("Touchdown: Selected index: %s @ %sHz. Complete list (index_alt: %s, "\
                       "index_gog: %s, index_wheel_touch: %s,  index_brake: %s, "\
