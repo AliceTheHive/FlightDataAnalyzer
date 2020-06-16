@@ -228,12 +228,17 @@ class ClimbStart(KeyTimeInstanceNode):
 
 class ClimbAccelerationStart(KeyTimeInstanceNode):
     '''
-    Creates KTI on first change in Airspeed Selected during initial climb to
-    indicate the start of the acceleration phase of climb
+    TODO review description
+    Creates KTI on first signs of acceleration.
 
-    Alignment is performed manually because Airspeed Selected can be recorded at
-    a very low frequency and interpolation will render the find_edges algorithm
-    useless.
+    In order of preference it will be determined by:
+    - A significant increase of Airspeed Selected with the flaps not set to 0
+    - A significant rise in Airspeed prior to the first flap retraction below 5,000 ft
+    - A change in Throttle Lever position for jet engines below 4,000 ft
+    - A change in Eng Np Max for propeller engines below 4,000 ft
+    - Defaults to 800 ft for jets and 400 ft for prop
+
+    Alignment is performed manually! This allows to check actual params frequency.
 
     Dynamically create rate_of_change width from the parameter's frequency to
     avoid errors. Larger widths flatten the rate of change result.
@@ -243,7 +248,8 @@ class ClimbAccelerationStart(KeyTimeInstanceNode):
     @classmethod
     def can_operate(cls, available, eng_type=A('Engine Propulsion')):
         spd_sel = 'Airspeed Selected' in available
-        spd = all_of(('Airspeed', 'Flap Lever Set'), available)
+        spd = any_of(('Flap Lever', 'Flap Lever (Synthetic)'), available) and \
+              'Airspeed' in available
         jet = (eng_type and eng_type.value == 'JET' and
                'Throttle Levers' in available)
         prop = (eng_type and eng_type.value == 'PROP' and
@@ -252,7 +258,6 @@ class ClimbAccelerationStart(KeyTimeInstanceNode):
         return all_of(('Initial Climb', 'Altitude When Climbing'), available) and \
                (spd_sel or spd or jet or prop or alt) and \
                not (eng_type and eng_type.value == 'ROTOR')
-
 
     def derive(self, alt_aal=P('Altitude AAL For Flight Phases'),
                initial_climbs=S('Initial Climb'),
@@ -264,12 +269,15 @@ class ClimbAccelerationStart(KeyTimeInstanceNode):
                eng_np=P('Eng (*) Np Max'),
                throttle=P('Throttle Levers'),
                spd=P('Airspeed'),
-               flap=KTI('Flap Lever Set')):
+               flap_lever=M('Flap Lever'),
+               flap_synth=M('Flap Lever (Synthetic)'),
+               family=A('Family')):
 
         if not initial_climbs.get_first():
             return
+        flap = flap_lever or flap_synth
 
-        if self.derive_from_spd_sel(spd_tgt, spd_sel, initial_climbs, alt_climbing, spd_sel_fmc, flap):
+        if self.derive_from_spd_sel(spd_tgt, spd_sel, initial_climbs, alt_climbing, spd_sel_fmc, flap, family):
             return
 
         if self.derive_from_spd_and_flap(flap, spd, initial_climbs, alt_climbing):
@@ -283,8 +291,7 @@ class ClimbAccelerationStart(KeyTimeInstanceNode):
 
         self.derive_from_alt_aal(alt_aal, eng_type, initial_climbs)
 
-
-    def derive_from_spd_sel(self, spd_tgt, spd_sel, initial_climbs, alt_climbing, spd_sel_fmc, flap):
+    def derive_from_spd_sel(self, spd_tgt, spd_sel, initial_climbs, alt_climbing, spd_sel_fmc, flap, family):
         if spd_sel is None:
             return False
         if spd_sel.frequency < 0.125:
@@ -345,8 +352,9 @@ class ClimbAccelerationStart(KeyTimeInstanceNode):
                     index = indices[0] + 1
                     yield index, spd_ref.frequency, spd_ref.offset
 
-        # If Airspeed Target available, ignore the others.
-        if spd_tgt and not spd_tgt.array.mask.all():
+        # If Airspeed Target available for B787, ignore the others.
+        if family and family.value=='B787' and spd_tgt and not spd_tgt.array.mask.all():
+            spd_tgt = spd_tgt.get_aligned(spd_sel)
             spd_refs = [spd_tgt]
         else:
             # Align to spd_sel
@@ -361,18 +369,15 @@ class ClimbAccelerationStart(KeyTimeInstanceNode):
 
         index = index + (_slice.start or 0)
         if flap:
-            # Make sure Airpseed Selected increased before Flap 0 Set
+            # Make sure Airpseed Selected increased with some flaps selected
             flap_aligned = flap.get_aligned(spd_sel)
-            prev_flap = flap_aligned.get_previous(index)
-            if prev_flap is None or prev_flap.name == "Flap 0 Set":
-                # prev_flap is None if taking off with flaps 0 or truncated flight
+            if flap_aligned.array[int(index)] in ('0', 'Lever 0'):
                 return False
 
         self.frequency = frequency
         self.offset = offset
         self.create_kti(index)
         return True
-
 
     def derive_from_spd_and_flap(self, flap, spd, initial_climbs, alt_climbing):
         if spd is None or flap is None:
@@ -387,13 +392,17 @@ class ClimbAccelerationStart(KeyTimeInstanceNode):
 
         # Find when flaps were first being retracted
         flap = flap.get_aligned(spd)
-        flap_retraction = flap.get_next(_slice.start, within_slice=_slice)
-        if flap_retraction is None:
+        flap_retraction = find_edges_on_state_change(
+            flap.array[int(_slice.start)], flap.array, change='leaving'
+        )
+        if not flap_retraction:
             return False
 
+        flap_retraction = flap_retraction[0]
+
         # Find when the airspeed started to increase after first flap retraction
-        flap_retr_idx = int(flap_retraction.index)
-        spd_array = spd.array[_slice.start:flap_retr_idx]
+        flap_retraction = int(flap_retraction)
+        spd_array = spd.array[_slice.start:flap_retraction]
         spd_avg = moving_average(spd_array, window=11)
         diff = np.ma.ediff1d(spd_avg)
         if not len(diff):
@@ -408,8 +417,8 @@ class ClimbAccelerationStart(KeyTimeInstanceNode):
         lowest_spd_idx = np.ma.argmax(diff_reversed[first_incr_idx:] < 0.0) + first_incr_idx
 
         # Substract lowest_spd_idx as we are looking from the end
-        index = (flap_retr_idx or len(spd_array)) - lowest_spd_idx
-        if spd.array[flap_retr_idx] - spd.array[index] < 5:
+        index = (flap_retraction or len(spd_array)) - lowest_spd_idx
+        if spd.array[flap_retraction] - spd.array[index] < 5:
             # Too small acceleration. We bail out from here.
             return False
 
@@ -421,7 +430,6 @@ class ClimbAccelerationStart(KeyTimeInstanceNode):
         self.offset = spd.offset
         self.create_kti(index)
         return True
-
 
     def derive_from_throttle(self, eng_type, throttle, initial_climbs, alt_climbing):
         if eng_type is None or eng_type.value != 'JET':
@@ -448,7 +456,6 @@ class ClimbAccelerationStart(KeyTimeInstanceNode):
         self.create_kti(index + (_slice.start or 0))
         return True
 
-
     def derive_from_eng_np(self, eng_type, eng_np, initial_climbs, alt_climbing):
         if eng_type is None or eng_type.value != 'PROP':
             return False
@@ -474,7 +481,6 @@ class ClimbAccelerationStart(KeyTimeInstanceNode):
         self.offset = eng_np.offset
         self.create_kti(index + (_slice.start or 0))
         return True
-
 
     def derive_from_alt_aal(self, alt_aal, eng_type, initial_climbs):
         if eng_type is None:
