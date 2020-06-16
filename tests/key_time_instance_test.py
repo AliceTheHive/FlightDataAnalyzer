@@ -294,7 +294,7 @@ class TestClimbAccelerationStart(unittest.TestCase):
         node = self.node_class()
         node.derive(None, init_climbs, alt_climbing, spd_sel, None, None, None, None, None, None, None)
         self.assertEqual(len(node), 1)
-        self.assertAlmostEqual(node[0].index, 13.1, places=1)
+        self.assertEqual(node[0].index, 15)
 
     def test_derive_spd_analog(self):
         spd_sel = load(os.path.join(test_data_path, 'climb_acceleration_start_spd_sel_analog.nod'))
@@ -305,7 +305,7 @@ class TestClimbAccelerationStart(unittest.TestCase):
         node = self.node_class()
         node.derive(None, init_climbs, alt_climbing, spd_sel, None, None, None, None, None, None, None)
         self.assertEqual(len(node), 1)
-        self.assertAlmostEqual(node[0].index, 1461, places=0)
+        self.assertAlmostEqual(node[0].index, 1462, places=0)
 
     def test_derive_spd_unchanged(self):
         array = np.ma.array([155]*35)
@@ -340,7 +340,21 @@ class TestClimbAccelerationStart(unittest.TestCase):
         node = self.node_class()
         node.derive(None, init_climbs, alt_climbing, spd_sel, None, spd_sel_fmc, None, None, None, None, None)
         self.assertEqual(len(node), 1)
-        self.assertAlmostEqual(node[0].index, 13.2, places=1)
+        self.assertEqual(node[0].index, 15)
+
+    def test_derive_spd_sel_fmc_last_lower_freq(self):
+        array = np.ma.concatenate((np.ones(20) * 110, np.ones(15) * 180))
+        spd_sel = Parameter('Airspeed Selected', array=array)
+        array = np.ma.concatenate((np.ones(12) * 130, np.ones(5) * 180))
+        spd_sel_fmc = Parameter('Airspeed Selected (FMC)', array=array, frequency=0.5)
+        init_climbs = buildsection('Initial Climb', 5, 19)
+        alt_climbing = AltitudeWhenClimbing(
+            items=[KeyTimeInstance(34, name='4000 Ft Climbing')]
+        )
+        node = self.node_class()
+        node.derive(None, init_climbs, alt_climbing, spd_sel, None, spd_sel_fmc, None, None, None, None, None)
+        self.assertEqual(len(node), 1)
+        self.assertEqual(node[0].index, 20)
 
     def test_derive_engine_propulsion(self):
         jet = A('Engine Propulsion', value='JET')
@@ -479,9 +493,9 @@ class TestClimbAccelerationStart(unittest.TestCase):
 
     def test_derive_airspeed_target(self):
         array = np.ma.concatenate((np.ones(15) * 110, np.ones(20) * 180))
-        spd_tgt = Parameter('Airspeed Selected', array=array)
+        spd_sel = Parameter('Airspeed Selected', array=array)
         array = np.ma.concatenate((np.ones(10) * 110, np.ones(25) * 180))
-        spd_sel = Parameter('Airspeed Target', array=array)
+        spd_tgt = Parameter('Airspeed Target', array=array)
         init_climbs = buildsection('Initial Climb', 5, 19)
         alt_climbing = AltitudeWhenClimbing(
             items=[KeyTimeInstance(29, name='4000 Ft Climbing')]
@@ -489,7 +503,45 @@ class TestClimbAccelerationStart(unittest.TestCase):
         node = self.node_class()
         node.derive(None, init_climbs, alt_climbing, spd_sel, spd_tgt, None, None, None, None, None, None)
         self.assertEqual(len(node), 1)
-        self.assertAlmostEqual(node[0].index, 13.1, places=1)
+        self.assertEqual(node[0].index, 10)
+
+    def test_derive_spd_tgt_fluctuating(self):
+        array = np.ma.concatenate((
+            np.ones(15) * 155,
+            np.ones(10) * 165,
+            np.ones(10) * 220
+        ))
+        spd_sel = Parameter('Airspeed Selected', array=array)
+        array = np.ma.concatenate((
+            np.ones(10) * 155,
+            np.array([155, 159, 159, 155, 157, 161, 159, 165, 160, 164]),
+            np.ones(5) * 165,
+            np.ones(10) * 220
+        ))
+        spd_tgt = Parameter('Airspeed Target', array=array)
+        init_climbs = buildsection('Initial Climb', 1, 30)
+        alt_climbing = AltitudeWhenClimbing(
+            items=[KeyTimeInstance(33, name='4000 Ft Climbing')]
+        )
+        node = self.node_class()
+        node.derive(None, init_climbs, alt_climbing, spd_sel, spd_tgt, None, None, None, None, None, None)
+        self.assertEqual(len(node), 1)
+        self.assertEqual(node[0].index, 25)
+
+    def test_derive_spd_tgt_masked_during_jump(self):
+        array = np.ma.concatenate((np.ones(15) * 110, np.ones(20) * 180))
+        spd_sel = Parameter('Airspeed Selected', array=array)
+        array = np.ma.concatenate((np.ones(10) * 110, np.ones(25) * 180))
+        array[8:12] = np.ma.masked
+        spd_tgt = Parameter('Airspeed Target', array=array)
+        init_climbs = buildsection('Initial Climb', 5, 19)
+        alt_climbing = AltitudeWhenClimbing(
+            items=[KeyTimeInstance(29, name='4000 Ft Climbing')]
+        )
+        node = self.node_class()
+        node.derive(None, init_climbs, alt_climbing, spd_sel, spd_tgt, None, None, None, None, None, None)
+        self.assertEqual(len(node), 1)
+        self.assertEqual(node[0].index, 12)
 
 
 class TestClimbThrustDerateDeselected(unittest.TestCase):

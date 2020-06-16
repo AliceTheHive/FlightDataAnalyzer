@@ -295,21 +295,62 @@ class ClimbAccelerationStart(KeyTimeInstanceNode):
         _slice = slice(_slice.start, int(climbing_4000.index) if climbing_4000 else _slice.stop)
 
         def index_at_first_spd_sel_change(spd_refs):
+            '''
+            Generator that produces for each speed references the index, frequency and
+            offset where the speed  jumped by at least 8 kts for a minimum of 5
+            consecutive samples. This allows to filter out any short term changes.
+
+            In case of masked data, it will determine the index of the first valid sample
+            which had an increase of 8 kts for 5 samples.
+            '''
             for spd_ref in spd_refs:
                 if spd_ref is None:
                     continue
-                spd_ref.array = spd_ref.array[_slice]
+                array = spd_ref.array[_slice]
+                if array.size < 6 or array.mask.all():
+                    # Size must be at least 6 samples as the np.diff will produce one
+                    # less value and we want to observe a change over 5 samples.
+                    continue
+                array = repair_mask(
+                    array, frequency=spd_ref.hz, repair_duration=300,
+                    copy=True, method='fill_start'
+                )
+                diff = np.ma.diff(array)
+                # The threshold is 8 kt per samples, except for high frequency params
+                # where we want to guarantee a threshold of 5 kt per seconds.
+                diff_threshold = 8 / max(1, spd_ref.hz)
+                # We want to find where the diff is above threshold and the sum of 5
+                # consecutive samples is still above our threshold
+                diff_sliding_window = np.lib.stride_tricks.as_strided(
+                    diff, shape=(diff.size-5, 5),
+                    strides=(diff.strides[0], diff.strides[0]),
+                    writeable=False
+                )
+                # Make diff the same length as diff_sliding_window
+                diff = diff[:-5]
+                # Find the indices of significant increase. nonzero returns a tuple
+                # with a single item as we have only 1D data.
+                increase_idxs, *_ = np.ma.nonzero(diff > diff_threshold)
+                # Sum over 5 consecutive samples wherever we had a significant increase
+                spd_increase = np.ma.sum(diff_sliding_window[increase_idxs], axis=1)
+                # Find which sliding window sum stayed above threshold, ie. the spd
+                # stayed at least 8 kt above its original value.
+                long_term_increases, *_ = np.ma.nonzero(spd_increase > diff_threshold)
+                # Get the diff indices which were sustained for 5 samples
+                indices = increase_idxs[long_term_increases]
 
-                spd_ref_threshold = 5 * spd_ref.frequency
-                spd_ref_roc = rate_of_change(spd_ref, 2 * (1 / spd_ref.frequency))
-                index = index_at_value(spd_ref_roc, spd_ref_threshold)
-                if index:
+                if indices.size:
+                    # We are interested in the first occurence.
+                    # Add 1 as we want to point to the high speed after the increase.
+                    index = indices[0] + 1
                     yield index, spd_ref.frequency, spd_ref.offset
 
         # If Airspeed Target available, ignore the others.
         if spd_tgt and not spd_tgt.array.mask.all():
             spd_refs = [spd_tgt]
         else:
+            # Align to spd_sel
+            spd_sel_fmc = spd_sel_fmc.get_aligned(spd_sel) if spd_sel_fmc else None
             spd_refs = [spd_sel, spd_sel_fmc]
 
         try:
