@@ -299,7 +299,7 @@ class TestClimbAccelerationStart(unittest.TestCase):
         node.derive(None, init_climbs, alt_climbing, spd_sel,
                     None, None, None, None, None, None, None, None, None)
         self.assertEqual(len(node), 1)
-        self.assertEqual(node[0].index, 15)
+        self.assertEqual(node[0].index, 14)
 
     def test_derive_spd_analog(self):
         spd_sel = load(os.path.join(test_data_path, 'climb_acceleration_start_spd_sel_analog.nod'))
@@ -311,7 +311,7 @@ class TestClimbAccelerationStart(unittest.TestCase):
         node.derive(None, init_climbs, alt_climbing, spd_sel,
                     None, None, None, None, None, None, None, None, None)
         self.assertEqual(len(node), 1)
-        self.assertAlmostEqual(node[0].index, 1462, places=0)
+        self.assertAlmostEqual(node[0].index, 1461, places=0)
 
     def test_derive_spd_unchanged(self):
         array = np.ma.array([155]*35)
@@ -349,7 +349,7 @@ class TestClimbAccelerationStart(unittest.TestCase):
         node.derive(None, init_climbs, alt_climbing, spd_sel, None, spd_sel_fmc,
                     None, None, None, None, None, None, None)
         self.assertEqual(len(node), 1)
-        self.assertEqual(node[0].index, 15)
+        self.assertEqual(node[0].index, 14)
 
     def test_derive_spd_sel_fmc_last_lower_freq(self):
         array = np.ma.concatenate((np.ones(20) * 110, np.ones(15) * 180))
@@ -364,7 +364,7 @@ class TestClimbAccelerationStart(unittest.TestCase):
         node.derive(None, init_climbs, alt_climbing, spd_sel, None, spd_sel_fmc,
                     None, None, None, None, None, None, None)
         self.assertEqual(len(node), 1)
-        self.assertEqual(node[0].index, 20)
+        self.assertEqual(node[0].index, 19)
 
     def test_derive_engine_propulsion(self):
         jet = A('Engine Propulsion', value='JET')
@@ -587,7 +587,7 @@ class TestClimbAccelerationStart(unittest.TestCase):
         node.derive(None, init_climbs, alt_climbing, spd_sel, spd_tgt,
                     None, None, None, None, None, None, None, family)
         self.assertEqual(len(node), 1)
-        self.assertEqual(node[0].index, 10)
+        self.assertEqual(node[0].index, 9)
 
     def test_derive_spd_tgt_fluctuating(self):
         array = np.ma.concatenate((
@@ -612,7 +612,7 @@ class TestClimbAccelerationStart(unittest.TestCase):
         node.derive(None, init_climbs, alt_climbing, spd_sel, spd_tgt,
                     None, None, None, None, None, None, None, family)
         self.assertEqual(len(node), 1)
-        self.assertEqual(node[0].index, 25)
+        self.assertEqual(node[0].index, 24)
 
     def test_derive_spd_tgt_masked_during_jump(self):
         array = np.ma.concatenate((np.ones(15) * 110, np.ones(20) * 180))
@@ -629,7 +629,7 @@ class TestClimbAccelerationStart(unittest.TestCase):
         node.derive(None, init_climbs, alt_climbing, spd_sel, spd_tgt,
                     None, None, None, None, None, None, None, family)
         self.assertEqual(len(node), 1)
-        self.assertEqual(node[0].index, 12)
+        self.assertEqual(node[0].index, 11)
 
 
 class TestClimbThrustDerateDeselected(unittest.TestCase):

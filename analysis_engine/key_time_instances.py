@@ -348,8 +348,7 @@ class ClimbAccelerationStart(KeyTimeInstanceNode):
 
                 if indices.size:
                     # We are interested in the first occurence.
-                    # Add 1 as we want to point to the high speed after the increase.
-                    index = indices[0] + 1
+                    index = indices[0]
                     yield index, spd_ref.frequency, spd_ref.offset
 
         # If Airspeed Target available for B787, ignore the others.
