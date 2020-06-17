@@ -393,15 +393,18 @@ class ClimbAccelerationStart(KeyTimeInstanceNode):
         # Find when flaps were first being retracted
         flap = flap.get_aligned(spd)
         flap_retraction = find_edges_on_state_change(
-            flap.array[int(_slice.start)], flap.array, change='leaving'
+            flap.array[int(_slice.start)], flap.array, change='leaving',
+            phase=[_slice]
         )
         if not flap_retraction:
             return False
 
-        flap_retraction = flap_retraction[0]
+        flap_retraction = int(flap_retraction[0])
+        if flap.array[flap_retraction] < flap.array[flap_retraction + 1]:
+            # This was a flap extension. Don't know what happened.
+            return False
 
         # Find when the airspeed started to increase after first flap retraction
-        flap_retraction = int(flap_retraction)
         spd_array = spd.array[_slice.start:flap_retraction]
         spd_avg = moving_average(spd_array, window=11)
         diff = np.ma.ediff1d(spd_avg)

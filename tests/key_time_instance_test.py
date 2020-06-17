@@ -408,6 +408,45 @@ class TestClimbAccelerationStart(unittest.TestCase):
         # And we move an additional 3 seconds before
         self.assertEqual(node[0].index, 30-5-3)
 
+    def test_derive_spd_flap_at_0_in_climb(self):
+        array = np.ma.concatenate((np.ones(29) * 111, np.arange(110, 181)))
+        spd = Parameter('Airspeed', array=array)
+        flap = M(
+            'Flap Lever (Synthetic)',
+            array=MappedArray(
+                np.repeat((0, 1), (80, 20)),
+                values_mapping={0: 'Lever 0', 1: 'Lever 1'}
+            )
+        )
+        init_climbs = buildsection('Initial Climb', 5, 40)
+        alt_climbing = AltitudeWhenClimbing(
+            items=[KeyTimeInstance(60, name='5000 Ft Climbing')]
+        )
+        node = self.node_class()
+        node.derive(None, init_climbs, alt_climbing, None, None, None, None, None, None,
+                    spd, flap, None, None)
+        self.assertEqual(len(node), 0)
+
+    def test_derive_spd_flap_extension(self):
+        array = np.ma.concatenate((np.ones(29) * 111, np.arange(110, 181)))
+        spd = Parameter('Airspeed', array=array)
+        flap = M(
+            'Flap Lever (Synthetic)',
+            array=MappedArray(
+                np.repeat((1, 2), (80, 20)),
+                values_mapping={1: 'Lever 1', 2: 'Lever 2'}
+            )
+        )
+        init_climbs = buildsection('Initial Climb', 5, 40)
+        alt_climbing = AltitudeWhenClimbing(items=[
+            KeyTimeInstance(90, name='4000 Ft Climbing'),
+            KeyTimeInstance(99, name='5000 Ft Climbing'),
+        ])
+        node = self.node_class()
+        node.derive(None, init_climbs, alt_climbing, None, None, None, None, None, None,
+                    spd, flap, None, None)
+        self.assertEqual(len(node), 0)
+
     def test_derive_eng_np(self):
         initial_climbs = buildsection('Initial Climb', 887, 926)
         initial_climbs.frequency = 0.5
@@ -480,9 +519,10 @@ class TestClimbAccelerationStart(unittest.TestCase):
         )
         flap = M('Flap Lever', array=flap_array)
         init_climbs = buildsection('Initial Climb', 5, 40)
-        alt_climbing = AltitudeWhenClimbing(
-            items=[KeyTimeInstance(99, name='4000 Ft Climbing')]
-        )
+        alt_climbing = AltitudeWhenClimbing(items=[
+            KeyTimeInstance(90, name='4000 Ft Climbing'),
+            KeyTimeInstance(99, name='5000 Ft Climbing'),
+        ])
         node = self.node_class()
         node.derive(None, init_climbs, alt_climbing, spd_sel,
                     None, None, None, None, None, spd, flap, None, None)
