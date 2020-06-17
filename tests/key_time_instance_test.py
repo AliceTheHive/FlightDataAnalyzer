@@ -631,6 +631,31 @@ class TestClimbAccelerationStart(unittest.TestCase):
         self.assertEqual(len(node), 1)
         self.assertEqual(node[0].index, 11)
 
+    def test_derive_2_spd_sel_changes_before_flap_retraction(self):
+        array = np.ma.concatenate((np.ones(29) * 111, np.arange(110, 181)))
+        spd = Parameter('Airspeed', array=array)
+        spd_sel = Parameter(
+            'Airspeed Selected',
+            array=np.ma.concatenate((
+                np.ones(30) * 111, np.ones(40) * 160, np.ones(30) * 180
+            ))
+        )
+        flap_array = MappedArray(
+            np.repeat((1, 0), (80, 20)),
+            values_mapping={0: '0', 1: '1'}
+        )
+        flap = M('Flap Lever', array=flap_array)
+        init_climbs = buildsection('Initial Climb', 5, 40)
+        alt_climbing = AltitudeWhenClimbing(items=[
+            KeyTimeInstance(90, name='4000 Ft Climbing'),
+            KeyTimeInstance(99, name='5000 Ft Climbing'),
+        ])
+        node = self.node_class()
+        node.derive(None, init_climbs, alt_climbing, spd_sel,
+                    None, None, None, None, None, spd, flap, None, None)
+        self.assertEqual(len(node), 1)
+        self.assertEqual(node[0].index, 69)
+
 
 class TestClimbThrustDerateDeselected(unittest.TestCase):
     def test_can_operate(self):

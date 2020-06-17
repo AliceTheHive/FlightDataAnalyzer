@@ -296,12 +296,14 @@ class ClimbAccelerationStart(KeyTimeInstanceNode):
             return False
         if spd_sel.frequency < 0.125:
             return False
+        if flap:
+            flap = flap.get_aligned(spd_sel)
         # Use first Airspeed Selected change in Initial Climb up to 4000 Ft
         _slice = initial_climbs.get_aligned(spd_sel).get_first().slice
         climbing_4000 = alt_climbing.get_aligned(spd_sel).get(name='4000 Ft Climbing').get_first()
         _slice = slice(_slice.start, int(climbing_4000.index) if climbing_4000 else _slice.stop)
 
-        def index_at_first_spd_sel_change(spd_refs):
+        def index_at_first_spd_sel_change(spd_refs, _slice, flap):
             '''
             Generator that produces for each speed references the index, frequency and
             offset where the speed  jumped by at least 8 kts for a minimum of 5
@@ -324,7 +326,7 @@ class ClimbAccelerationStart(KeyTimeInstanceNode):
                 )
                 diff = np.ma.diff(array)
                 # The threshold is 8 kt per samples, except for high frequency params
-                # where we want to guarantee a threshold of 5 kt per seconds.
+                # where we want to guarantee a threshold of 8 kt per seconds.
                 diff_threshold = 8 / max(1, spd_ref.hz)
                 # We want to find where the diff is above threshold and the sum of 5
                 # consecutive samples is still above our threshold
@@ -347,9 +349,36 @@ class ClimbAccelerationStart(KeyTimeInstanceNode):
                 indices = increase_idxs[long_term_increases]
 
                 if indices.size:
-                    # We are interested in the first occurence.
-                    index = indices[0]
+                    index = nearest_to_flap_retraction(indices, _slice, flap)
                     yield index, spd_ref.frequency, spd_ref.offset
+
+        def nearest_to_flap_retraction(indices, _slice, flap):
+            '''
+            Find the index in indices which is the nearest to the first flap retraction
+            within the _slice.
+
+            The nearest index must be before the first flap retraction.
+            If for any reasons, no index before the first flap retraction can be found,
+            we return the first index in indices.
+            '''
+            if not flap:
+                return indices[0]
+            flap_retraction = find_edges_on_state_change(
+                flap.array[int(_slice.start)], flap.array, change='leaving',
+                phase=[_slice]
+            )
+            if not flap_retraction:
+                return indices[0]
+
+            flap_retraction = int(flap_retraction[0])
+            if flap.array[flap_retraction] < flap.array[flap_retraction + 1]:
+                return indices[0]
+
+            dist = flap_retraction - indices
+            dist = np.where(dist < 0, np.inf, dist)
+            index = indices[np.argmin(dist)]
+            return index
+
 
         # If Airspeed Target available for B787, ignore the others.
         if family and family.value=='B787' and spd_tgt and not spd_tgt.array.mask.all():
@@ -361,7 +390,9 @@ class ClimbAccelerationStart(KeyTimeInstanceNode):
             spd_refs = [spd_sel, spd_sel_fmc]
 
         try:
-            index, frequency, offset = min(index_at_first_spd_sel_change(spd_refs))
+            index, frequency, offset = min(
+                index_at_first_spd_sel_change(spd_refs, _slice, flap)
+            )
         except ValueError:
             # No index was found
             return False
@@ -369,8 +400,7 @@ class ClimbAccelerationStart(KeyTimeInstanceNode):
         index = index + (_slice.start or 0)
         if flap:
             # Make sure Airpseed Selected increased with some flaps selected
-            flap_aligned = flap.get_aligned(spd_sel)
-            if flap_aligned.array[int(index)] in ('0', 'Lever 0'):
+            if flap.array[int(index)] in ('0', 'Lever 0'):
                 return False
 
         self.frequency = frequency
