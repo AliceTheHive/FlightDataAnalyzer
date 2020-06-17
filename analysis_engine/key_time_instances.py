@@ -299,7 +299,7 @@ class ClimbAccelerationStart(KeyTimeInstanceNode):
         if flap:
             flap = flap.get_aligned(spd_sel)
         # Use first Airspeed Selected change in Initial Climb up to 4000 Ft
-        _slice = initial_climbs.get_aligned(spd_sel).get_first().slice
+        _slice = slices_int(initial_climbs.get_aligned(spd_sel).get_first().slice)
         climbing_4000 = alt_climbing.get_aligned(spd_sel).get(name='4000 Ft Climbing').get_first()
         _slice = slice(_slice.start, int(climbing_4000.index) if climbing_4000 else _slice.stop)
 
@@ -363,15 +363,15 @@ class ClimbAccelerationStart(KeyTimeInstanceNode):
             '''
             if not flap:
                 return indices[0]
+            flap_array = flap.array[_slice]
             flap_retraction = find_edges_on_state_change(
-                flap.array[int(_slice.start)], flap.array, change='leaving',
-                phase=[_slice]
+                flap.array[int(_slice.start)], flap_array, change='leaving',
             )
             if not flap_retraction:
                 return indices[0]
 
             flap_retraction = int(flap_retraction[0])
-            if flap.array[flap_retraction] < flap.array[flap_retraction + 1]:
+            if flap_array.raw[flap_retraction] < flap_array.raw[flap_retraction + 1]:
                 return indices[0]
 
             dist = flap_retraction - indices
@@ -414,7 +414,7 @@ class ClimbAccelerationStart(KeyTimeInstanceNode):
 
         # Based on airspeed increase after first flap retraction
         # Align to Airspeed.
-        _slice = initial_climbs.get_aligned(spd).get_first().slice
+        _slice = slices_int(initial_climbs.get_aligned(spd).get_first().slice)
         climbing_5000 = alt_climbing.get_aligned(spd).get(name='5000 Ft Climbing').get_first()
         if climbing_5000:
             _slice = slice(_slice.start, int(climbing_5000.index))
@@ -429,7 +429,7 @@ class ClimbAccelerationStart(KeyTimeInstanceNode):
             return False
 
         flap_retraction = int(flap_retraction[0])
-        if flap.array[flap_retraction] < flap.array[flap_retraction + 1]:
+        if flap.array.raw[flap_retraction] < flap.array.raw[flap_retraction + 1]:
             # This was a flap extension. Don't know what happened.
             return False
 
@@ -472,7 +472,7 @@ class ClimbAccelerationStart(KeyTimeInstanceNode):
 
         # Base on first engine throttle change after liftoff.
         # Align to throttle.
-        _slice = initial_climbs.get_aligned(throttle).get_first().slice
+        _slice = slices_int(initial_climbs.get_aligned(throttle).get_first().slice)
         climbing_4000 = alt_climbing.get_aligned(throttle).get(name='4000 Ft Climbing').get_first()
         _slice = slice(_slice.start, int(climbing_4000.index) if climbing_4000 else _slice.stop)
         # XXX: Width is too small for low frequency params.
@@ -497,7 +497,7 @@ class ClimbAccelerationStart(KeyTimeInstanceNode):
 
         # Base on first Np drop after liftoff.
         # Align to Np.
-        _slice = initial_climbs.get_aligned(eng_np).get_first().slice
+        _slice = slices_int(initial_climbs.get_aligned(eng_np).get_first().slice)
         climbing_4000 = alt_climbing.get_aligned(eng_np).get(name='4000 Ft Climbing').get_first()
         if climbing_4000:
             _slice = slice(_slice.start, int(climbing_4000.index))
