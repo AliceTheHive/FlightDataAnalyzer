@@ -863,7 +863,7 @@ class AltitudeAAL(DerivedParameterNode):
                                                         next_dip['highest_ground'])
                         else:
                             dip['highest_ground'] = min(prev_dip['highest_ground'],
-                                                        dip['alt_std']-1000.0,
+                                                        dip['alt_std'],
                                                         next_dip['highest_ground'])
 
             for dip in dips:

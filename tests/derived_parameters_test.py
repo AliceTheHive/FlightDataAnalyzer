@@ -1007,6 +1007,11 @@ class TestAltitudeAAL(unittest.TestCase):
         plt.plot(alt_aal.array, '-r')
         plt.show()
         '''
+        # Make sure we appeared three times on the ground.
+        np.testing.assert_array_equal(
+            np.nonzero(alt_aal.array == 0.0),
+            [[0, np.argmin(testwave), len(testwave)-1]]
+        )
 
     def test_alt_aal_complex_with_mask(self):
         #testwave = np.ma.cos(np.arange(0, 3.14 * 2 * 5, 0.1)) * -3000 + \
