@@ -715,7 +715,7 @@ class Fast(FlightPhaseNode):
             return seg_type and seg_type.value == 'START_AND_STOP' and 'Airspeed' in available
 
     def derive(self, airspeed=P('Airspeed'), rotor_speed=P('Nr'),
-               ac_type=A('Aircraft Type'), eng_prop=A('Engine Propulsion')):
+               ac_type=A('Aircraft Type'), family=A('Family')):
         """
         Did the aircraft go fast enough to possibly become airborne?
 
@@ -735,10 +735,12 @@ class Fast(FlightPhaseNode):
             fast = np.ma.masked_less(nr, ROTORSPEED_THRESHOLD)
             fast_slices = np.ma.clump_unmasked(fast)
         else:
-            if eng_prop and eng_prop.value == 'PROP':
+            if family and family.value in ('C172', 'C206', 'C208', 'DA40', 'DA42 TwinStar'):
                 spd_threshold = 60
+                time_limit = 10
             else:
                 spd_threshold = AIRSPEED_THRESHOLD
+                time_limit = 30
 
             ias = airspeed.array.copy()
             # Mask isolated (single sample) of "valid" data surrounded by masked data
@@ -747,7 +749,7 @@ class Fast(FlightPhaseNode):
                           raise_entirely_masked=False)
             fast = np.ma.masked_less(ias, spd_threshold)
             fast_slices = np.ma.clump_unmasked(fast)
-            fast_slices = slices_remove_small_gaps(fast_slices, time_limit=30,
+            fast_slices = slices_remove_small_gaps(fast_slices, time_limit=time_limit,
                                                    hz=self.frequency)
 
         fast_slices = slices_remove_small_slices(fast_slices, time_limit=10,

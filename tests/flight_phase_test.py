@@ -1369,11 +1369,11 @@ class TestFast(unittest.TestCase):
         expected = buildsection('Fast', 10, 30)
         self.assertEqual(phase_fast.get_slices(), expected.get_slices())
 
-    def test_fast_phase_prop(self):
+    def test_fast_phase_piston(self):
         slow_and_fast_data = np.ma.concatenate((np.arange(40, 120, 10), np.ones(300) * 120, np.arange(120, 30, -10)))
         ias = Parameter('Airspeed', slow_and_fast_data)
         phase_fast = Fast()
-        phase_fast.derive(ias, None, None, A('Engine Propulsion', 'PROP'))
+        phase_fast.derive(ias, None, None, A('Family', 'DA40'))
 
         expected = buildsection('Fast', 2, 315)
         self.assertEqual(phase_fast.get_slices(), expected.get_slices())
