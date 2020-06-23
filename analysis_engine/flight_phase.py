@@ -32,6 +32,7 @@ from analysis_engine.library import (
     is_index_within_slices,
     is_slice_within_slice,
     last_valid_sample,
+    mask_isolated_valid_samples,
     max_value,
     peak_curvature,
     rate_of_change,
@@ -714,7 +715,7 @@ class Fast(FlightPhaseNode):
             return seg_type and seg_type.value == 'START_AND_STOP' and 'Airspeed' in available
 
     def derive(self, airspeed=P('Airspeed'), rotor_speed=P('Nr'),
-               ac_type=A('Aircraft Type')):
+               ac_type=A('Aircraft Type'), eng_prop=A('Engine Propulsion')):
         """
         Did the aircraft go fast enough to possibly become airborne?
 
@@ -730,20 +731,28 @@ class Fast(FlightPhaseNode):
 
         if ac_type == helicopter:
             nr = repair_mask(rotor_speed.array, repair_duration=600,
-                             raise_entirely_masked=False)
+                             raise_entirely_masked=False, copy=True)
             fast = np.ma.masked_less(nr, ROTORSPEED_THRESHOLD)
             fast_slices = np.ma.clump_unmasked(fast)
         else:
-            ias = repair_mask(airspeed.array, repair_duration=600,
-                              raise_entirely_masked=False)
-            fast = np.ma.masked_less(ias, AIRSPEED_THRESHOLD)
+            if eng_prop and eng_prop.value == 'PROP':
+                spd_threshold = 60
+            else:
+                spd_threshold = AIRSPEED_THRESHOLD
+
+            ias = airspeed.array.copy()
+            # Mask isolated (single sample) of "valid" data surrounded by masked data
+            mask_isolated_valid_samples(ias)
+            ias = repair_mask(ias, repair_duration=600,
+                          raise_entirely_masked=False)
+            fast = np.ma.masked_less(ias, spd_threshold)
             fast_slices = np.ma.clump_unmasked(fast)
             fast_slices = slices_remove_small_gaps(fast_slices, time_limit=30,
                                                    hz=self.frequency)
-            fast_slices = slices_remove_small_slices(fast_slices, time_limit=10,
-                                                     hz=self.frequency)
 
-        self.create_phases(slices_remove_small_slices(fast_slices))
+        fast_slices = slices_remove_small_slices(fast_slices, time_limit=10,
+                                                     hz=self.frequency)
+        self.create_phases(fast_slices)
 
 
 class FinalApproach(FlightPhaseNode):

@@ -4207,6 +4207,26 @@ def mask_edges(mask):
     return edge_mask
 
 
+def mask_isolated_valid_samples(array):
+    '''
+    Mask single isolated valid samples surrounded by masked data.
+
+    The operation is done in place, ie. it will mutate the array.
+
+    :param array: Masked array to mask.
+    :type array: np.ma.MaskedArray
+    :returns: Masked array with single valid samples masked.
+    :rtype: np.ma.MaskedArray
+    '''
+    m = np.ma.getmask(array)
+    if m is not np.ma.nomask:
+        # Find valid sample surrounded by invalid samples
+        # mask would be True, False, True
+        short_spike = (m[2:] & m[:-2]) & ~m[1:-1]
+        array[1:-1][short_spike] = np.ma.masked
+    return array
+
+
 def max_continuous_unmasked(array, _slice=slice(None)):
     """
     Returns the max_slice

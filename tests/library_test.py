@@ -127,6 +127,7 @@ from analysis_engine.library import (
     MappedArray,
     maintain_altitude,
     mask_inside_slices,
+    mask_isolated_valid_samples,
     mask_outside_slices,
     max_abs_value,
     max_continuous_unmasked,
@@ -4180,6 +4181,36 @@ class TestMaskOutsideSlices(unittest.TestCase):
         expected_result.mask = np.array([False] * 20 + [True] * 11 + [False] * 18 + [True])
         ma_test.assert_masked_array_equal(mask_outside_slices(array, slices),
                                           expected_result)
+
+
+class TestMaskIsolatedValidSamples:
+    def test_one_valid_sample_in_the_middle(self):
+        array = np.ma.array(np.ones(10), mask=np.ones(10))
+        array[4] = np.ma.nomask
+        mask_isolated_valid_samples(array)
+        assert array.mask.all()
+
+    def test_two_valid_samples_non_contiguous(self):
+        array = np.ma.array(np.ones(10), mask=np.ones(10))
+        array[[4, 6]] = np.ma.nomask
+        mask_isolated_valid_samples(array)
+        assert array.mask.all()
+
+    def test_one_valid_sample_at_start_of_array(self):
+        array = np.ma.array(np.ones(10), mask=np.ones(10))
+        array[0] = np.ma.nomask
+        mask_isolated_valid_samples(array)
+        expected = np.ones(10, dtype=bool)
+        expected[0] = False
+        np.testing.assert_array_equal(array.mask, expected)
+
+    def test_two_consecutive_valid_samples(self):
+        array = np.ma.array(np.ones(10), mask=np.ones(10))
+        array[4:6] = np.ma.nomask
+        expected = array.mask.copy()
+        mask_isolated_valid_samples(array)
+        np.testing.assert_array_equal(array.mask, expected)
+
 
 class TestMatchAltitudes(unittest.TestCase):
     def test_basic_operation(self):

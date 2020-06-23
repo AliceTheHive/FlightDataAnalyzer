@@ -1330,7 +1330,7 @@ class TestFast(unittest.TestCase):
         slow_and_fast_data = np.ma.concatenate((np.arange(60, 120, 10), np.ones(300) * 120, np.arange(120, 50, -10)))
         ias = Parameter('Airspeed', slow_and_fast_data,1,0)
         phase_fast = Fast()
-        phase_fast.derive(ias)
+        phase_fast.derive(ias, None, None, None)
         if AIRSPEED_THRESHOLD == 80:
             expected = buildsection('Fast', 2, 311)
         if AIRSPEED_THRESHOLD == 70:
@@ -1341,7 +1341,7 @@ class TestFast(unittest.TestCase):
         fast_data = np.ma.ones(20) * 120
         ias = Parameter('Airspeed', fast_data, 1, 0)
         phase_fast = Fast()
-        phase_fast.derive(ias)
+        phase_fast.derive(ias, None, None, None)
         # Q: Should we really create no fast sections?
         expected = buildsection('Fast', 0, 20)
         self.assertEqual(phase_fast.get_slices(), expected.get_slices())
@@ -1350,14 +1350,14 @@ class TestFast(unittest.TestCase):
         fast_data = np.ma.ones(10) * 12
         ias = Parameter('Airspeed', fast_data, 1, 0)
         phase_fast = Fast()
-        phase_fast.derive(ias)
+        phase_fast.derive(ias, None, None, None)
         self.assertEqual(phase_fast, [])
 
     def test_fast_slowing_only(self):
         fast_data = np.ma.arange(120, 60, -2)
         ias = Parameter('Airspeed', fast_data, 1, 0)
         phase_fast = Fast()
-        phase_fast.derive(ias)
+        phase_fast.derive(ias, None, None, None)
         expected = buildsection('Fast', 0, 21)
         self.assertEqual(phase_fast.get_slices(), expected.get_slices())
 
@@ -1365,14 +1365,23 @@ class TestFast(unittest.TestCase):
         fast_data = np.ma.arange(60, 120, 2)
         ias = Parameter('Airspeed', fast_data, 1, 0)
         phase_fast = Fast()
-        phase_fast.derive(ias)
+        phase_fast.derive(ias, None, None, None)
         expected = buildsection('Fast', 10, 30)
+        self.assertEqual(phase_fast.get_slices(), expected.get_slices())
+
+    def test_fast_phase_prop(self):
+        slow_and_fast_data = np.ma.concatenate((np.arange(40, 120, 10), np.ones(300) * 120, np.arange(120, 30, -10)))
+        ias = Parameter('Airspeed', slow_and_fast_data)
+        phase_fast = Fast()
+        phase_fast.derive(ias, None, None, A('Engine Propulsion', 'PROP'))
+
+        expected = buildsection('Fast', 2, 315)
         self.assertEqual(phase_fast.get_slices(), expected.get_slices())
 
     def test_fast_real_data_1(self):
         airspeed = load(os.path.join(test_data_path, 'Fast_airspeed.nod'))
         node = Fast()
-        node.derive(airspeed)
+        node.derive(airspeed, None, None, None)
         self.assertEqual(len(node), 1)
         self.assertEqual(node[0].slice.start, 2258)
         self.assertEqual(node[0].slice.stop, 14976)
@@ -1380,7 +1389,7 @@ class TestFast(unittest.TestCase):
         # Test short masked section does not create two fast slices.
         airspeed.array[5000:5029] = np.ma.masked
         node = Fast()
-        node.derive(airspeed)
+        node.derive(airspeed, None, None, None)
         self.assertEqual(len(node), 1)
         self.assertEqual(node[0].slice.start, 2258)
         self.assertEqual(node[0].slice.stop, 14976)
@@ -1388,12 +1397,22 @@ class TestFast(unittest.TestCase):
         # Test long masked section splits up fast into two slices.
         airspeed.array[6000:10000] = np.ma.masked
         node = Fast()
-        node.derive(airspeed)
+        node.derive(airspeed, None, None, None)
         self.assertEqual(len(node), 2)
         self.assertEqual(node[0].slice.start, 2258)
         self.assertEqual(node[0].slice.stop, 6000)
         self.assertEqual(node[1].slice.start, 10000)
         self.assertEqual(node[1].slice.stop, 14976)
+
+    def test_spike_airspd(self):
+        spd_array = np.ma.arange(0, 120)
+        spd_array[:60] = np.ma.masked
+        spd_array[2] = 100  # Spike
+        ias = Parameter('Airspeed', spd_array, 1.0, 0.0)
+        phase_fast = Fast()
+        phase_fast.derive(ias, None, None, None)
+        expected = buildsection('Fast', 80, 120)
+        self.assertEqual(phase_fast.get_slices(), expected.get_slices())
 
 
 class TestGrounded(unittest.TestCase):
