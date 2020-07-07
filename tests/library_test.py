@@ -6155,9 +6155,12 @@ class TestSlicesAnd(unittest.TestCase):
 class TestSlicesAbove(unittest.TestCase):
     def test_slices_above(self):
         array = np.ma.concatenate([np.arange(10), np.arange(10)])
-        array.mask = [False] * 18 + [True] * 2
+        array.mask = np.repeat([0, 1, 0, 1], [12, 2, 4, 2])
+        # Let's make sure we don't alter the original array mask
+        original = array.copy()
         repaired_array, slices = slices_above(array, 5)
         self.assertEqual(slices, [slice(5, 10, None), slice(15, 18, None)])
+        np.testing.assert_array_equal(original.mask, array.mask)
 
 
 class TestSlicesAfter(unittest.TestCase):
