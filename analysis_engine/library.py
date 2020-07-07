@@ -3195,7 +3195,16 @@ def integrate(array, frequency, initial_value=0.0, scale=1.0,
         raise ValueError("Invalid direction '%s'" % direction)
 
     k = (scale * 0.5)/frequency
-    to_int = k * (integrand + np.roll(integrand, d))
+
+    mask = np.ma.getmask(integrand).copy()
+    if mask is not np.ma.nomask:
+        integrand = integrand.filled(0)
+
+    to_int = np.ma.MaskedArray(
+        k * (integrand + np.roll(integrand, d)),
+        mask=mask
+    )
+
     edges = np.ma.flatnotmasked_edges(to_int)
     # In some cases to_int and the rolled version may result in a completely masked result.
     if edges is None:
@@ -3217,14 +3226,8 @@ def integrate(array, frequency, initial_value=0.0, scale=1.0,
 
     result[::d] = np.ma.cumsum(to_int[::d] * s)
 
-
-    # Original version used this half sample shifted result; never used.
-    ##if extend:
-        ##result += integrand[0]*s*k
-        ##result[-1] += integrand[-1]*s*k
-
     if extend:
-        first_value = integrand.compressed()[0]
+        first_value = integrand[edges[0]]
         result += first_value * 2. * s * k
 
     return result
